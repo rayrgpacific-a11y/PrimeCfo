@@ -13,10 +13,9 @@ async function resolveAuthUserId(
   // 1. If provided userId is a valid UUID, verify if it exists in auth.users
   if (userId && UUID_REGEX.test(userId)) {
     try {
-      const match: any[] = await prisma.$queryRawUnsafe(
-        `SELECT id FROM auth.users WHERE id = $1::uuid LIMIT 1`,
-        userId
-      );
+      const match = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM auth.users WHERE id = ${userId}::uuid LIMIT 1
+      `;
       if (match.length > 0) return match[0].id;
     } catch {}
   }
@@ -35,10 +34,9 @@ async function resolveAuthUserId(
   // 3. Check auth.users by email
   if (email) {
     try {
-      const matchEmail: any[] = await prisma.$queryRawUnsafe(
-        `SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`,
-        email
-      );
+      const matchEmail = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM auth.users WHERE lower(email) = lower(${email}) LIMIT 1
+      `;
       if (matchEmail.length > 0) return matchEmail[0].id;
     } catch {}
   }
@@ -46,9 +44,9 @@ async function resolveAuthUserId(
   // 4. Default to primary advisor ONLY if caller is an operator
   if (isOperator) {
     try {
-      const defaultUser: any[] = await prisma.$queryRawUnsafe(
-        `SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1`
-      );
+      const defaultUser = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1
+      `;
       if (defaultUser.length > 0) return defaultUser[0].id;
     } catch {}
   }
