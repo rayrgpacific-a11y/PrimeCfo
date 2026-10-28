@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireTenantSession } from '@/lib/auth';
+import { isValidUuid } from '@/lib/stripe';
 
 export async function GET(request: Request) {
   try {
@@ -98,6 +99,30 @@ export async function GET(request: Request) {
       }
     }
 
+    // 4. Resolve Stripe subscription status
+    let subscriptionData: any = null;
+    if (client.userId && isValidUuid(client.userId)) {
+      try {
+        const sub = await prisma.stripeSubscription.findFirst({
+          where: { userId: client.userId },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (sub) {
+          subscriptionData = {
+            id: sub.stripeSubscriptionId,
+            status: sub.status,
+            planId: sub.planId,
+            interval: sub.interval,
+            currentPeriodEnd: sub.currentPeriodEnd,
+            trialEnd: sub.trialEnd,
+            cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+          };
+        }
+      } catch (subErr) {
+        console.warn('Could not read stripe_subscriptions in settings:', subErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -110,6 +135,7 @@ export async function GET(request: Request) {
         weeklyEmail,
         anomalyAlerts,
         plan: client.clientType || 'UNDERSTAND',
+        subscription: subscriptionData,
         isQbConnected,
         qboCompanyId,
         lastSync,

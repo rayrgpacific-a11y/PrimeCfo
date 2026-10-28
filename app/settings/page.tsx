@@ -5,12 +5,8 @@ import Link from 'next/link';
 import PortalShell from '@/components/portal/PortalShell';
 import {
   CreditCard,
-  Lock,
   Bell,
   Scale,
-  Shield,
-  Check,
-  ChevronRight,
   ExternalLink,
   Save,
   CheckCircle2,
@@ -30,8 +26,19 @@ export default function SettingsPage() {
   const [isQbConnected, setIsQbConnected] = useState(false);
   const [qboCompanyId, setQboCompanyId] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<{
+    id: string;
+    status: string;
+    planId: string | null;
+    interval: string | null;
+    currentPeriodEnd: string | null;
+    trialEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+  } | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [billingNotice, setBillingNotice] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -51,11 +58,36 @@ export default function SettingsPage() {
           if (typeof d.isQbConnected === 'boolean') setIsQbConnected(d.isQbConnected);
           if (d.qboCompanyId) setQboCompanyId(d.qboCompanyId);
           if (d.lastSync) setLastSync(d.lastSync);
+          if (d.subscription) setSubscription(d.subscription);
         }
       })
       .catch((e) => console.warn('Failed to load settings:', e))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleOpenBillingPortal = async () => {
+    setPortalLoading(true);
+    setBillingNotice(null);
+    try {
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.url && !data.mock) {
+        window.location.href = data.url;
+        return;
+      }
+      if (data.message) {
+        setBillingNotice(data.message);
+      } else if (data.error) {
+        setBillingNotice(data.error);
+      }
+    } catch (err: any) {
+      setBillingNotice(err?.message || 'Failed to initialize customer billing portal');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -197,7 +229,83 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 3. ACCOUNTING PREFERENCES */}
+        {/* 3. SUBSCRIPTION & BILLING */}
+        <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 mb-6 shadow-xl">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-indigo-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">Subscription &amp; Billing</h2>
+              <p className="text-xs text-slate-400">Manage plan tier, payment details, and Stripe billing invoices.</p>
+            </div>
+          </div>
+
+          {billingNotice && (
+            <div className="mb-4 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{billingNotice}</span>
+            </div>
+          )}
+
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-bold text-white">
+                  {plan ? `Plan: ${plan}` : 'Growth Plan'}
+                </span>
+                {subscription?.status === 'trialing' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                    <CheckCircle2 className="w-3 h-3" /> 14-Day Free Trial
+                  </span>
+                ) : subscription?.status === 'active' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <CheckCircle2 className="w-3 h-3" /> Active
+                  </span>
+                ) : subscription?.status === 'past_due' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    Payment Attention Needed
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                    Trial Active
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400">
+                {subscription?.trialEnd
+                  ? `Trial concludes on ${new Date(subscription.trialEnd).toLocaleDateString()}. Cancel anytime before.`
+                  : subscription?.currentPeriodEnd
+                  ? `Current billing period renews on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}.`
+                  : 'Automated Stripe subscription with payment method guard and receipts.'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleOpenBillingPortal}
+                disabled={portalLoading}
+                className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white text-xs font-semibold rounded-xl shadow-lg shadow-teal-500/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {portalLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ExternalLink className="w-3.5 h-3.5" />
+                )}
+                <span>Manage Billing</span>
+              </button>
+              <Link
+                href="/pricing"
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl border border-slate-700 transition-colors whitespace-nowrap"
+              >
+                Upgrade Plan
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* 4. ACCOUNTING PREFERENCES */}
         <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 mb-6 shadow-xl">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">

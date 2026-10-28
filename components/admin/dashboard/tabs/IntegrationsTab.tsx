@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CheckCircle, ShieldCheck, Link2 } from 'lucide-react';
+import { CheckCircle, Link2 } from 'lucide-react';
 import { Client } from '@/types/admin';
 
 interface IntegrationsTabProps {
@@ -98,30 +98,32 @@ export default function IntegrationsTab({
         <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-lg hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-bold text-white tracking-tight">Stripe Payments</h3>
-              <p className="text-xs text-slate-400">Merchant Feeds & Invoices</p>
+              <h3 className="text-base font-bold text-white tracking-tight">Stripe Billing & Payments</h3>
+              <p className="text-xs text-slate-400">Subscription & Webhook Gateway</p>
             </div>
-            <div className="w-8 h-8 rounded-lg bg-slate-800 text-slate-500 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
               <Link2 className="w-4 h-4" />
             </div>
           </div>
 
           <div className="space-y-2 mb-6 text-xs bg-slate-800/40 border border-slate-800 rounded-xl p-3">
             <div className="flex justify-between">
-              <span className="text-slate-400">Pipeline Status</span>
-              <span className="text-teal-400 font-semibold">ACT Growth Tier</span>
+              <span className="text-slate-400">Engine Status</span>
+              <span className="text-emerald-400 font-semibold">Ready / Configurable</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Webhook Gateway</span>
-              <span className="text-slate-400 font-mono">/api/stripe/webhook</span>
+              <span className="text-slate-300 font-mono">/api/stripe/webhook</span>
             </div>
           </div>
 
           <a 
-            href="mailto:support@primecfo.ai?subject=Stripe%20Integration%20Activation"
-            className="w-full py-2.5 px-4 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            href="https://dashboard.stripe.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 px-4 bg-slate-800 border border-slate-700 text-teal-300 rounded-xl hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
           >
-            <span>Activate Stripe Connector</span>
+            <span>Open Stripe Dashboard</span>
             <span className="text-[10px]">&rarr;</span>
           </a>
         </div>
