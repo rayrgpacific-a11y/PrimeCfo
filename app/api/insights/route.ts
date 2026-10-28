@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     }
 
     const { session } = authResult;
-    let targetClientId = session.role === 'operator' ? (requestedClientId || session.clientId) : session.clientId;
+    const targetClientId = session.role === 'operator' ? (requestedClientId || session.clientId) : session.clientId;
 
     if (!targetClientId) {
       return NextResponse.json({ error: 'Client ID required' }, { status: 400 });

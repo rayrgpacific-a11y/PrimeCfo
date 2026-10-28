@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    let tokenRecord = await prisma.qboToken.findUnique({
+    const tokenRecord = await prisma.qboToken.findUnique({
       where: { clientId },
     });
 

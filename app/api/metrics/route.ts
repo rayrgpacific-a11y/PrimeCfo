@@ -105,7 +105,7 @@ export async function GET(request: Request) {
       });
     }
 
-    let bsReport = await prisma.financialReport.findFirst({
+    const bsReport = await prisma.financialReport.findFirst({
       where: { clientId: targetClientId, reportType: 'balance_sheet' },
       orderBy: { syncedAt: 'desc' },
     });

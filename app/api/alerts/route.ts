@@ -2,6 +2,19 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireTenantSession } from '@/lib/auth';
 
+const VALID_ALERT_KINDS = ['cash_balance', 'cash_crunch', 'ar_spike', 'revenue_trend', 'expense_anomaly', 'margin_erode'] as const;
+
+function normalizeAlertKind(kind?: string): string {
+  const k = (kind || '').toLowerCase().trim();
+  if (k.includes('crunch') || k.includes('runway')) return 'cash_crunch';
+  if (k.includes('cash') || k.includes('liquid') || k.includes('horizon')) return 'cash_balance';
+  if (k.includes('ar') || k.includes('receiv') || k.includes('invoice')) return 'ar_spike';
+  if (k.includes('rev') || k.includes('sales')) return 'revenue_trend';
+  if (k.includes('exp') || k.includes('cost') || k.includes('burn')) return 'expense_anomaly';
+  if (k.includes('margin') || k.includes('profit')) return 'margin_erode';
+  return 'cash_balance';
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -90,17 +103,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Alert title is required' }, { status: 400 });
     }
 
-    const alertEvent = await prisma.financialAlert.create({
-      data: {
+    const validKind = normalizeAlertKind(category);
+
+    const existingAlert = await prisma.financialAlert.findFirst({
+      where: {
         clientId: targetClientId,
-        title: title.trim(),
-        body: description ? description.trim() : '',
-        severityKey: severity || 'warning',
-        alertKind: category || 'Cash Horizon',
-        state: 'active',
-        meta: { actionRequired: !!actionRequired },
+        alertKind: validKind,
       },
     });
+
+    const alertEvent = existingAlert
+      ? await prisma.financialAlert.update({
+          where: { id: existingAlert.id },
+          data: {
+            title: title.trim(),
+            body: description ? description.trim() : '',
+            severityKey: severity || 'warning',
+            state: 'active',
+            meta: { actionRequired: !!actionRequired },
+          },
+        })
+      : await prisma.financialAlert.create({
+          data: {
+            clientId: targetClientId,
+            title: title.trim(),
+            body: description ? description.trim() : '',
+            severityKey: severity || 'warning',
+            alertKind: validKind,
+            state: 'active',
+            meta: { actionRequired: !!actionRequired },
+          },
+        });
 
     const created: any = alertEvent;
     return NextResponse.json({

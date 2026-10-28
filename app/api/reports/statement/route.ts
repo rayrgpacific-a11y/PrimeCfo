@@ -130,7 +130,7 @@ export async function GET(request: Request) {
       targetClientId = primaryClient?.id;
     }
 
-    let reportRecord = targetClientId
+    const reportRecord = targetClientId
       ? await prisma.financialReport.findFirst({
           where: {
             clientId: targetClientId,
