@@ -43,35 +43,44 @@ export async function GET(request: NextRequest) {
     const encryptedRefreshToken = encryptToken(tokenObj.refresh_token);
     const expiresAt = new Date(Date.now() + (tokenObj.expires_in || 3600) * 1000);
 
-    // Resolve active client ID in database to guarantee valid foreign keys
-    let activeClientId = clientId;
-    const clientExists = await prisma.client.findUnique({ where: { id: clientId } });
-    if (!clientExists) {
-      const defaultClient = await prisma.client.findFirst();
-      if (defaultClient) {
-        activeClientId = defaultClient.id;
-      }
+    // Strictly validate that the client ID from verified state exists in the database
+    const clientRecord = await prisma.client.findUnique({ where: { id: clientId } });
+    if (!clientRecord) {
+      console.error(`❌ Client ID ${clientId} from verified OAuth state does not exist in database`);
+      return NextResponse.redirect(`${baseUrl}/admin/dashboard?error=invalid_tenant_binding`);
     }
+    const activeClientId = clientRecord.id;
+
+    const targetCompanyId = realmId || 'unknown_realm';
 
     // Persist to Prisma QboToken model with encrypted tokens
-    await prisma.qboToken.upsert({
+    const existingToken = await prisma.qboToken.findFirst({
       where: { clientId: activeClientId },
-      create: {
-        clientId: activeClientId,
-        companyId: realmId,
-        accessToken: encryptedAccessToken,
-        refreshToken: encryptedRefreshToken,
-        expiresAt,
-      },
-      update: {
-        companyId: realmId,
-        accessToken: encryptedAccessToken,
-        refreshToken: encryptedRefreshToken,
-        expiresAt,
-      },
     });
 
-    // Update or create connection record
+    if (existingToken) {
+      await prisma.qboToken.update({
+        where: { id: existingToken.id },
+        data: {
+          companyId: targetCompanyId,
+          accessToken: encryptedAccessToken,
+          refreshToken: encryptedRefreshToken,
+          expiresAt,
+        },
+      });
+    } else {
+      await prisma.qboToken.create({
+        data: {
+          clientId: activeClientId,
+          companyId: targetCompanyId,
+          accessToken: encryptedAccessToken,
+          refreshToken: encryptedRefreshToken,
+          expiresAt,
+        },
+      });
+    }
+
+    // Update or create connection record in client_qbo_connections
     const existingConn = await prisma.clientQboConnection.findFirst({
       where: { clientId: activeClientId, companyId: realmId || '' },
     });
@@ -97,6 +106,37 @@ export async function GET(request: NextRequest) {
           syncEnabled: true,
           sandboxMode: process.env.QBO_ENVIRONMENT !== 'production',
           notes: `Connected via Intuit OAuth on ${new Date().toISOString()}`,
+        },
+      });
+    }
+
+    // Synchronize quickbooks_connections table for backward compatibility
+    const existingQbConn = await prisma.quickbooksConnection.findFirst({
+      where: { clientId: activeClientId },
+    });
+
+    if (existingQbConn) {
+      await prisma.quickbooksConnection.update({
+        where: { id: existingQbConn.id },
+        data: {
+          realmId: targetCompanyId,
+          accessToken: encryptedAccessToken,
+          refreshToken: encryptedRefreshToken,
+          accessExpiresAt: expiresAt,
+          refreshExpiresAt: new Date(Date.now() + 100 * 24 * 60 * 60 * 1000),
+          status: 'connected',
+        },
+      });
+    } else {
+      await prisma.quickbooksConnection.create({
+        data: {
+          clientId: activeClientId,
+          realmId: targetCompanyId,
+          accessToken: encryptedAccessToken,
+          refreshToken: encryptedRefreshToken,
+          accessExpiresAt: expiresAt,
+          refreshExpiresAt: new Date(Date.now() + 100 * 24 * 60 * 60 * 1000),
+          status: 'connected',
         },
       });
     }

@@ -8,6 +8,7 @@ import {
   DollarSign,
   Calendar,
   ChevronDown,
+  ChevronRight,
   Download,
   Check,
   TrendingUp,
@@ -18,8 +19,22 @@ import {
   ShieldCheck,
   Building2,
   Clock,
-  Landmark
+  Landmark,
+  RefreshCw,
+  Folder,
+  FolderOpen
 } from 'lucide-react';
+
+interface DrillDownRow {
+  id: string;
+  parentId: string | null;
+  name: string;
+  amount: number | null;
+  formattedAmount: string;
+  type: 'section' | 'data' | 'summary';
+  depth: number;
+  hasChildren: boolean;
+}
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<'treasury' | 'analytics' | 'reports'>('reports');
@@ -54,16 +69,34 @@ export default function ReportsPage() {
   const [qbData, setQbData] = useState<any>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
 
+  // Statement drill-down state
+  const [statementData, setStatementData] = useState<{
+    header: any;
+    rows: DrillDownRow[];
+    syncedAt: string | null;
+  } | null>(null);
+  const [statementLoading, setStatementLoading] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     fetch('/api/me')
       .then((res) => res.json())
       .then((user) => {
         if (user.clientId) setClientId(user.clientId);
-        if (user.tenantName) {
+        const GENERIC_PROVIDERS = ['gmail', 'yahoo', 'ymail', 'rocketmail', 'hotmail', 'outlook', 'live', 'msn', 'icloud', 'proton', 'protonmail', 'zoho', 'aol', 'mail', 'gmx', 'yandex'];
+        const isGeneric = user.tenantName && GENERIC_PROVIDERS.includes(user.tenantName.toLowerCase().trim());
+        if (user.tenantName && !isGeneric) {
           setClientName(user.tenantName);
         } else if (user.email) {
           const prefix = user.email.split('@')[0];
-          setClientName(prefix.charAt(0).toUpperCase() + prefix.slice(1));
+          const nameTokens = prefix
+            .split(/[._+-]/)
+            .filter(Boolean)
+            .filter((s: string) => !/^\d+$/.test(s))
+            .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+            .filter((s: string) => !['web', 'admin', 'contact', 'info'].includes(s.toLowerCase()));
+          const formatted = nameTokens.join(' ');
+          setClientName(formatted ? `${formatted} Holdings` : 'My Organization');
         }
       })
       .catch(() => {});
@@ -88,6 +121,40 @@ export default function ReportsPage() {
     ]).finally(() => setMetricsLoading(false));
   }, [selectedRange, clientId]);
 
+  // Load statement drill-down when activeStatement or clientId changes
+  useEffect(() => {
+    setStatementLoading(true);
+    const url = `/api/reports/statement?type=${activeStatement}${clientId ? `&clientId=${clientId}` : ''}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setStatementData(res.data);
+        } else {
+          setStatementData(null);
+        }
+      })
+      .catch(() => setStatementData(null))
+      .finally(() => setStatementLoading(false));
+  }, [activeStatement, clientId]);
+
+  const toggleSection = (id: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const isRowVisible = (row: DrillDownRow, allRows: DrillDownRow[]) => {
+    let currParent = row.parentId;
+    while (currParent) {
+      if (collapsedSections[currParent]) return false;
+      const parentRow = allRows.find((r) => r.id === currParent);
+      currParent = parentRow?.parentId || null;
+    }
+    return true;
+  };
+
   const cash = Number(qbData?.treasury?.totalCash ?? metrics?.cashPosition) || 0;
   const revenue = Number(qbData?.invoices?.totalAmount ?? qbData?.profitLoss?.revenue ?? metrics?.revenue) || 0;
   const netProfit = Number(qbData?.profitLoss?.netIncome ?? metrics?.netProfit) || 0;
@@ -98,14 +165,14 @@ export default function ReportsPage() {
   const expenseCategories = qbData?.expenses?.categories || null;
   const fixedAssets = qbData?.fixedAssets || [];
 
-  const hasData = [cash, revenue, netProfit, ar, runway].some((v) => v !== 0);
+  const hasData = [cash, revenue, netProfit, ar, runway].some((v) => v !== 0) || (statementData?.rows && statementData.rows.length > 0);
   const fmt = (n: number) => (n < 0 ? '($' + Math.round(-n).toLocaleString('en-US') + ')' : '$' + Math.round(n).toLocaleString('en-US'));
 
   const handleDownloadPdf = () => {
     generateFinancialSummaryPdf({
       clientName: clientName || 'Organization',
       periodLabel: currentRangeLabel,
-      basis: 'Cash',
+      basis: statementData?.header?.reportBasis || 'Cash',
       revenue,
       netIncome: netProfit,
       cash,
@@ -214,25 +281,38 @@ export default function ReportsPage() {
       {/* FINANCIAL REPORTS VIEW */}
       {hasData && activeTab === 'reports' && (
         <div className="space-y-6">
-          <div className="inline-flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl">
-            {statements.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveStatement(s.id as any)}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeStatement === s.id ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="inline-flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl">
+              {statements.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveStatement(s.id as any)}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    activeStatement === s.id ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {statementData?.header && (
+              <span className="text-xs text-slate-400">
+                Reporting Basis: <strong className="text-slate-200">{statementData.header.reportBasis}</strong> &middot; Currency: <strong className="text-slate-200">{statementData.header.currency}</strong>
+              </span>
+            )}
           </div>
 
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-white">{statements.find((s) => s.id === activeStatement)?.label}</h3>
-                <p className="text-xs text-slate-400">Live from QuickBooks &middot; USD &middot; {currentRangeLabel}</p>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>{statements.find((s) => s.id === activeStatement)?.label}</span>
+                  {statementLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Detailed line-item hierarchy synchronized from QuickBooks General Ledger
+                </p>
               </div>
               {activeStatement === 'pnl' && (
                 <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
@@ -243,83 +323,163 @@ export default function ReportsPage() {
 
             <table className="w-full text-left text-sm">
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {activeStatement === 'pnl' && (
-                  <>
-                    <tr className="bg-slate-950/40 font-semibold text-white">
-                      <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-teal-400 tracking-wider">Revenue</td>
-                    </tr>
-                    <tr>
-                      <td className="py-3 px-6 pl-8">Total Invoiced Sales</td>
-                      <td className="py-3 px-6 text-right tabular-nums font-semibold text-white">{fmt(revenue)}</td>
-                    </tr>
-                    <tr className="bg-slate-950/40 font-semibold text-white">
-                      <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-rose-400 tracking-wider">Operating Expenses</td>
-                    </tr>
-                    {expenseCategories ? (
-                      Object.entries(expenseCategories).map(([cat, amt]: any) => (
-                        <tr key={cat}>
-                          <td className="py-3 px-6 pl-8">{cat}</td>
-                          <td className="py-3 px-6 text-right tabular-nums text-slate-300">{fmt(amt)}</td>
+                {/* Authentic Drill-Down Rows from financial_reports */}
+                {statementData?.rows && statementData.rows.length > 0 ? (
+                  statementData.rows.map((row) => {
+                    if (!isRowVisible(row, statementData.rows)) return null;
+
+                    const isCollapsed = !!collapsedSections[row.id];
+                    const indentPadding = Math.min(row.depth * 20 + 24, 80);
+
+                    if (row.type === 'section') {
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => row.hasChildren && toggleSection(row.id)}
+                          className={`bg-slate-950/60 font-semibold text-white transition-colors ${
+                            row.hasChildren ? 'cursor-pointer hover:bg-slate-900/80' : ''
+                          }`}
+                        >
+                          <td
+                            className="py-3 px-6 flex items-center gap-2 text-xs sm:text-sm"
+                            style={{ paddingLeft: `${indentPadding}px` }}
+                          >
+                            {row.hasChildren && (
+                              <span className="text-teal-400">
+                                {isCollapsed ? (
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                ) : (
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                )}
+                              </span>
+                            )}
+                            <span className="uppercase tracking-wider text-[11px] text-teal-300">
+                              {row.name}
+                            </span>
+                          </td>
+                          <td className="py-3 px-6 text-right tabular-nums font-bold text-white">
+                            {row.formattedAmount !== '—' ? row.formattedAmount : ''}
+                          </td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td className="py-3 px-6 pl-8">Total Operating Expenses</td>
-                        <td className="py-3 px-6 text-right tabular-nums text-slate-300">{fmt(revenue - netProfit)}</td>
+                      );
+                    }
+
+                    if (row.type === 'summary') {
+                      return (
+                        <tr
+                          key={row.id}
+                          className="bg-teal-500/10 font-bold border-t border-teal-500/30 text-teal-300"
+                        >
+                          <td
+                            className="py-3.5 px-6 font-semibold"
+                            style={{ paddingLeft: `${indentPadding}px` }}
+                          >
+                            {row.name}
+                          </td>
+                          <td className="py-3.5 px-6 text-right tabular-nums text-emerald-400 font-extrabold text-sm sm:text-base">
+                            {row.formattedAmount}
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // Standard Data Row
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td
+                          className="py-2.5 px-6 text-slate-300 text-xs sm:text-sm"
+                          style={{ paddingLeft: `${indentPadding}px` }}
+                        >
+                          {row.name}
+                        </td>
+                        <td className="py-2.5 px-6 text-right tabular-nums font-medium text-slate-200">
+                          {row.formattedAmount}
+                        </td>
                       </tr>
-                    )}
-                    <tr className="bg-teal-500/10 font-bold border-t-2 border-teal-500 text-teal-300">
-                      <td className="py-4 px-6 text-base">Net Operating Income</td>
-                      <td className="py-4 px-6 text-right text-base text-emerald-400 font-extrabold tabular-nums">{fmt(netProfit)}</td>
-                    </tr>
-                  </>
-                )}
-
-                {activeStatement === 'balance_sheet' && (
+                    );
+                  })
+                ) : (
+                  // Fallback Summary Layout when no drill-down rows available
                   <>
-                    <tr className="bg-slate-950/40 font-semibold text-white">
-                      <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-teal-400 tracking-wider">Assets</td>
-                    </tr>
-                    <tr>
-                      <td className="py-3 px-6 pl-8">Cash &amp; Equivalents</td>
-                      <td className="py-3 px-6 text-right tabular-nums text-white font-semibold">{fmt(cash)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-3 px-6 pl-8">Accounts Receivable</td>
-                      <td className="py-3 px-6 text-right tabular-nums text-white font-semibold">{fmt(ar)}</td>
-                    </tr>
-                    {fixedAssets.length > 0 && (
-                      fixedAssets.map((asset: any) => (
-                        <tr key={asset.id}>
-                          <td className="py-3 px-6 pl-8">{asset.name} ({asset.subcategory || 'Capital Asset'})</td>
-                          <td className="py-3 px-6 text-right tabular-nums text-white">{fmt(asset.currentValue || asset.purchasePrice)}</td>
+                    {activeStatement === 'pnl' && (
+                      <>
+                        <tr className="bg-slate-950/40 font-semibold text-white">
+                          <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-teal-400 tracking-wider">Revenue</td>
                         </tr>
-                      ))
+                        <tr>
+                          <td className="py-3 px-6 pl-8">Total Invoiced Sales</td>
+                          <td className="py-3 px-6 text-right tabular-nums font-semibold text-white">{fmt(revenue)}</td>
+                        </tr>
+                        <tr className="bg-slate-950/40 font-semibold text-white">
+                          <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-rose-400 tracking-wider">Operating Expenses</td>
+                        </tr>
+                        {expenseCategories ? (
+                          Object.entries(expenseCategories).map(([cat, amt]: any) => (
+                            <tr key={cat}>
+                              <td className="py-3 px-6 pl-8">{cat}</td>
+                              <td className="py-3 px-6 text-right tabular-nums text-slate-300">{fmt(amt)}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td className="py-3 px-6 pl-8">Total Operating Expenses</td>
+                            <td className="py-3 px-6 text-right tabular-nums text-slate-300">{fmt(revenue - netProfit)}</td>
+                          </tr>
+                        )}
+                        <tr className="bg-teal-500/10 font-bold border-t-2 border-teal-500 text-teal-300">
+                          <td className="py-4 px-6 text-base">Net Operating Income</td>
+                          <td className="py-4 px-6 text-right text-base text-emerald-400 font-extrabold tabular-nums">{fmt(netProfit)}</td>
+                        </tr>
+                      </>
                     )}
-                    <tr className="bg-slate-950/40 font-semibold text-white">
-                      <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-rose-400 tracking-wider">Liabilities &amp; Equity</td>
-                    </tr>
-                    <tr>
-                      <td className="py-3 px-6 pl-8">Estimated Liabilities (AP)</td>
-                      <td className="py-3 px-6 text-right tabular-nums text-slate-300">{fmt(revenue > 0 ? (revenue - netProfit) * 0.25 : 0)}</td>
-                    </tr>
-                  </>
-                )}
 
-                {activeStatement === 'cash_flow' && (
-                  <>
-                    <tr>
-                      <td className="py-3.5 px-6">Cash Inflow from Invoiced Operations</td>
-                      <td className="py-3.5 px-6 text-right tabular-nums font-semibold text-emerald-400">+{fmt(revenue)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-3.5 px-6">Operating Cash Outflow</td>
-                      <td className="py-3.5 px-6 text-right tabular-nums font-semibold text-rose-400">-{fmt(revenue - netProfit)}</td>
-                    </tr>
-                    <tr className="bg-teal-500/10 font-bold border-t border-teal-500/40">
-                      <td className="py-4 px-6 text-teal-300">Net Operational Cash Flow</td>
-                      <td className="py-4 px-6 text-right tabular-nums text-emerald-300 font-extrabold">+{fmt(netProfit)}</td>
-                    </tr>
+                    {activeStatement === 'balance_sheet' && (
+                      <>
+                        <tr className="bg-slate-950/40 font-semibold text-white">
+                          <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-teal-400 tracking-wider">Assets</td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-6 pl-8">Cash &amp; Equivalents</td>
+                          <td className="py-3 px-6 text-right tabular-nums text-white font-semibold">{fmt(cash)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-6 pl-8">Accounts Receivable</td>
+                          <td className="py-3 px-6 text-right tabular-nums text-white font-semibold">{fmt(ar)}</td>
+                        </tr>
+                        {fixedAssets.length > 0 && (
+                          fixedAssets.map((asset: any) => (
+                            <tr key={asset.id}>
+                              <td className="py-3 px-6 pl-8">{asset.name} ({asset.subcategory || 'Capital Asset'})</td>
+                              <td className="py-3 px-6 text-right tabular-nums text-white">{fmt(asset.currentValue || asset.purchasePrice)}</td>
+                            </tr>
+                          ))
+                        )}
+                        <tr className="bg-slate-950/40 font-semibold text-white">
+                          <td colSpan={2} className="py-2.5 px-6 uppercase text-[10px] text-rose-400 tracking-wider">Liabilities &amp; Equity</td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-6 pl-8">Estimated Liabilities (AP)</td>
+                          <td className="py-3 px-6 text-right tabular-nums text-slate-300">{fmt(revenue > 0 ? (revenue - netProfit) * 0.25 : 0)}</td>
+                        </tr>
+                      </>
+                    )}
+
+                    {activeStatement === 'cash_flow' && (
+                      <>
+                        <tr>
+                          <td className="py-3.5 px-6">Cash Inflow from Invoiced Operations</td>
+                          <td className="py-3.5 px-6 text-right tabular-nums font-semibold text-emerald-400">+{fmt(revenue)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-3.5 px-6">Operating Cash Outflow</td>
+                          <td className="py-3.5 px-6 text-right tabular-nums font-semibold text-rose-400">-{fmt(revenue - netProfit)}</td>
+                        </tr>
+                        <tr className="bg-teal-500/10 font-bold border-t border-teal-500/40">
+                          <td className="py-4 px-6 text-teal-300">Net Operational Cash Flow</td>
+                          <td className="py-4 px-6 text-right tabular-nums text-emerald-300 font-extrabold">+{fmt(netProfit)}</td>
+                        </tr>
+                      </>
+                    )}
                   </>
                 )}
               </tbody>

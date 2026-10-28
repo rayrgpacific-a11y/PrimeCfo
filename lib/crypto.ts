@@ -1,8 +1,20 @@
 import crypto from 'crypto';
 
-// Secret keys for cryptographic operations
-const SESSION_SECRET = process.env.SESSION_SECRET || 'primecfo_production_secure_hmac_secret_2026_salt_9981273';
-const ENCRYPTION_KEY = (process.env.TOKEN_ENCRYPTION_KEY || 'primecfo_aes256_vault_key_32byte_string!!').slice(0, 32);
+// Secret keys for cryptographic operations - fail closed if missing in production
+function getCryptoSecret(envVarName: string, minLength: number = 32): string {
+  const secret = process.env[envVarName];
+  if (!secret || secret.length < minLength) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`[FATAL SECURITY ERROR] Missing or insecure ${envVarName} (min ${minLength} chars required). Halting.`);
+    }
+    console.warn(`[SECURITY WARNING] Missing or short ${envVarName}. Please ensure a secure 32+ char key is defined in .env.local.`);
+    return 'insecure_dev_only_mock_secret_not_valid_for_production_use!';
+  }
+  return secret;
+}
+
+const SESSION_SECRET = getCryptoSecret('SESSION_SECRET', 32);
+const ENCRYPTION_KEY = getCryptoSecret('TOKEN_ENCRYPTION_KEY', 32).slice(0, 32);
 
 /**
  * Signs a payload string with HMAC-SHA256
@@ -21,6 +33,11 @@ export function verifySignedPayload(signedPayload: string): string | null {
   const lastDotIndex = signedPayload.lastIndexOf('.');
   const payload = signedPayload.slice(0, lastDotIndex);
   const signature = signedPayload.slice(lastDotIndex + 1);
+
+  // Strict 64-character hex check to prevent Buffer.from parsing bypass
+  if (signature.length !== 64 || !/^[0-9a-fA-F]{64}$/.test(signature)) {
+    return null;
+  }
 
   const expectedHmac = crypto.createHmac('sha256', SESSION_SECRET);
   expectedHmac.update(payload);

@@ -1,41 +1,41 @@
-// This is your Prisma schema file for PrimeCFO.ai
-// Learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
-
+// Prisma schema for PrimeCFO.ai aligned to the authentic Supabase production database
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
+generator client {
+  provider = "prisma-client-js"
+}
+
 // ==========================================
 // 1. CLIENT ENTITIES
 // ==========================================
 model Client {
-  id              String   @id @default(uuid()) @map("client_id")
-  clientName      String   @map("client_name")
-  companyName     String?  @map("company_name")
-  email           String   @unique
-  phone           String?
-  notes           String?
-  tags            String[] @default([])
-  clientType      String?  @map("client_type")
-  isActive        Boolean  @default(true) @map("is_active")
-  qboCustomerId   String?  @map("qbo_customer_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                     String   @id @default(uuid()) @map("client_id") @db.Uuid
+  clientName             String   @map("client_name")
+  companyName            String?  @map("company_name")
+  email                  String   @unique
+  phone                  String?
+  notes                  String?
+  tags                   String[] @default([])
+  clientType             String?  @map("client_type")
+  isActive               Boolean? @default(true) @map("is_active")
+  qboCustomerId          String?  @map("qbo_customer_id")
+  userId                 String?  @map("user_id") @db.Uuid
+  qboReportBasis         String?  @map("qbo_report_basis")
+  reportingBasisOverride String?  @map("reporting_basis_override")
+  hasInvoicingActivity   Boolean? @map("has_invoicing_activity")
+  createdAt              DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime? @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relationships
-  qboConnections   ClientQboConnection[]
-  qboTokens        QboToken[]
-  assets           Asset[]
-  financialMetrics FinancialMetric[]
-  alerts           FinancialAlert[]
-  advisoryNotes    AdvisoryNote[]
-  actionItems      ActionItem[]
-  documents        Document[]
+  qboConnections         ClientQboConnection[]
+  qboTokens              QboToken[]
+  financialMetrics       FinancialMetric[]
+  financialReports       FinancialReport[]
+  financialReportPeriods FinancialReportPeriod[]
 
   @@map("clients")
 }
@@ -44,20 +44,19 @@ model Client {
 // 2. QUICKBOOKS ONLINE OAUTH CONNECTIONS
 // ==========================================
 model ClientQboConnection {
-  id           String    @id @default(uuid())
-  clientId     String    @map("client_id")
-  companyId    String    @map("company_id")
-  customerId   String?   @map("customer_id")
-  realmId      String?   @map("realm_id")
-  syncEnabled  Boolean   @default(false) @map("sync_enabled")
-  sandboxMode  Boolean   @default(false) @map("sandbox_mode")
-  status       String    @default("pending")
-  notes        String?
-  connectedAt  DateTime? @map("connected_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id          String    @id @default(uuid()) @db.Uuid
+  clientId    String    @map("client_id") @db.Uuid
+  companyId   String    @map("company_id")
+  customerId  String?   @map("customer_id")
+  realmId     String?   @map("realm_id")
+  syncEnabled Boolean?  @default(false) @map("sync_enabled")
+  sandboxMode Boolean?  @default(false) @map("sandbox_mode")
+  status      String?   @default("pending")
+  notes       String?
+  connectedAt DateTime? @map("connected_at") @db.Timestamptz
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime? @updatedAt @map("updated_at") @db.Timestamptz
 
-  // Relations
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
@@ -68,16 +67,15 @@ model ClientQboConnection {
 // 3. QUICKBOOKS TOKEN VAULT
 // ==========================================
 model QboToken {
-  id           String    @id @default(uuid())
-  clientId     String    @unique @map("client_id")
-  companyId    String?   @map("company_id")
+  id           String    @id @default(uuid()) @db.Uuid
+  clientId     String    @unique @map("client_id") @db.Uuid
+  companyId    String    @map("company_id")
   accessToken  String?   @map("access_token")
   refreshToken String?   @map("refresh_token")
-  expiresAt    DateTime? @map("expires_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamptz
 
-  // Relations
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
@@ -85,138 +83,204 @@ model QboToken {
 }
 
 // ==========================================
-// 4. ASSET REGISTER & DEPRECIATION
+// 4. FINANCIAL REPORT PERIODS
 // ==========================================
-model Asset {
-  id                 String   @id @default(uuid())
-  clientId           String   @map("client_id")
-  name               String
-  category           String   @default("fixed") // fixed, intangible, investment, inventory, lease
-  subcategory        String?
-  purchaseDate       String?  @map("purchase_date")
-  purchasePrice      Float    @default(0) @map("purchase_price")
-  currentValue       Float    @default(0) @map("current_value")
-  depreciationMethod String   @default("straight-line") @map("depreciation_method") // straight-line, declining, none
-  usefulLife         Int      @default(5) @map("useful_life")
-  salvageValue       Float    @default(0) @map("salvage_value")
-  location           String?
-  serialNumber       String?  @map("serial_number")
-  vendor             String?
-  warranty           String?
-  status             String   @default("active") // active, disposed, impaired, in_transit
-  notes              String?
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+model FinancialReportPeriod {
+  id         String    @id @default(uuid()) @db.Uuid
+  clientId   String    @map("client_id") @db.Uuid
+  periodType String    @map("period_type")
+  startDate  DateTime  @map("start_date") @db.Date
+  endDate    DateTime  @map("end_date") @db.Date
+  label      String
 
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  metrics    FinancialMetric[]
+  reports    FinancialReport[]
 
   @@index([clientId])
-  @@map("assets")
+  @@map("financial_report_periods")
 }
 
 // ==========================================
-// 5. FINANCIAL METRICS & STATEMENTS
+// 5. FINANCIAL METRICS (KEY-VALUE ACCOUNTING)
 // ==========================================
 model FinancialMetric {
-  id           String   @id @default(uuid())
-  clientId     String   @map("client_id")
-  period       String   @default("30d") // 30d, 90d, 12m, 4q
-  cashPosition Float    @default(0) @map("cash_position")
-  revenue      Float    @default(0)
-  netProfit    Float    @default(0) @map("net_profit")
-  profitMargin Float    @default(0) @map("profit_margin")
-  arAging      Float    @default(0) @map("ar_aging")
-  cashRunway   Float    @default(0) @map("cash_runway")
-  basis        String   @default("cash") // cash, accrual
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
+  periodId  String   @map("period_id") @db.Uuid
+  metricKey String   @map("metric_key")
+  value     Decimal  @db.Decimal
+  unit      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  // Relations
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  period FinancialReportPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([periodId])
   @@map("financial_metrics")
 }
 
 // ==========================================
-// 6. SYSTEM & FINANCIAL ALERTS
+// 6. FINANCIAL REPORTS (RAW ACCOUNTING TREES)
+// ==========================================
+model FinancialReport {
+  id         String   @id @default(uuid()) @db.Uuid
+  clientId   String   @map("client_id") @db.Uuid
+  reportType String   @map("report_type")
+  periodId   String   @map("period_id") @db.Uuid
+  source     String
+  rawJson    Json     @map("raw_json")
+  syncedAt   DateTime @default(now()) @map("synced_at") @db.Timestamptz
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  period FinancialReportPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([periodId])
+  @@map("financial_reports")
+}
+
+// ==========================================
+// 7. AI INSIGHTS
+// ==========================================
+model AiInsight {
+  id              String   @id @default(uuid()) @db.Uuid
+  clientId        String   @map("client_id")
+  periodId        String?  @map("period_id") @db.Uuid
+  reportRange     String?  @map("report_range")
+  title           String
+  description     String
+  urgency         String
+  category        String
+  metric          String?
+  metricValue     String?  @map("metric_value")
+  recommendations Json?
+  talkingPoints   Json?    @map("talking_points")
+  severityOrder   Int      @map("severity_order")
+  snapshotId      String?  @map("snapshot_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([clientId])
+  @@map("ai_insights")
+}
+
+// ==========================================
+// 8. AI RISK POSTURE
+// ==========================================
+model AiRiskPosture {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientId    String   @map("client_id")
+  reportRange String   @map("report_range")
+  rating      String
+  summary     String
+  topAction   String?  @map("top_action")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([clientId])
+  @@map("ai_risk_posture")
+}
+
+// ==========================================
+// 9. FINANCIAL ALERT EVENTS
 // ==========================================
 model FinancialAlert {
-  id             String   @id @default(uuid())
-  clientId       String   @map("client_id")
-  severity       String   @default("warning") // critical, warning, info
-  category       String   @default("Cash Horizon")
+  id             String    @id @default(uuid()) @db.Uuid
+  clientId       String    @map("client_id")
+  alertKind      String    @map("alert_kind")
+  state          String
+  severityKey    String    @map("severity_key")
   title          String
-  description    String
-  actionRequired Boolean  @default(false) @map("action_required")
-  isResolved     Boolean  @default(false) @map("is_resolved")
-  timestamp      DateTime @default(now())
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  body           String
+  meta           Json
+  snoozedUntil   DateTime? @map("snoozed_until") @db.Timestamptz
+  lastNotifiedAt DateTime? @map("last_notified_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([clientId])
-  @@map("financial_alerts")
+  @@map("financial_alert_events")
 }
 
 // ==========================================
-// 7. CFO ADVISORY NOTES & WORKPAPERS
+// 10. QUICKBOOKS CONNECTIONS (HISTORICAL/ACTIVE)
 // ==========================================
-model AdvisoryNote {
-  id        String   @id @default(uuid())
-  clientId  String   @map("client_id")
-  content   String
-  author    String   @default("CFO Lead")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+model QuickbooksConnection {
+  id               String    @id @default(uuid()) @db.Uuid
+  clientId         String    @map("client_id")
+  realmId          String    @map("realm_id")
+  accessToken      String    @map("access_token")
+  refreshToken     String    @map("refresh_token")
+  accessExpiresAt  DateTime  @map("access_expires_at") @db.Timestamptz
+  refreshExpiresAt DateTime  @map("refresh_expires_at") @db.Timestamptz
+  scope            String?
+  status           String
+  lastRefreshError String?   @map("last_refresh_error")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([clientId])
-  @@map("advisory_notes")
+  @@map("quickbooks_connections")
 }
 
 // ==========================================
-// 8. CFO ACTION ITEMS / CHECKLIST
+// 11. STRIPE CUSTOMERS & SUBSCRIPTIONS
 // ==========================================
-model ActionItem {
-  id          String    @id @default(uuid())
-  clientId    String    @map("client_id")
-  title       String
-  description String?
-  isCompleted Boolean   @default(false) @map("is_completed")
-  priority    String    @default("normal") // high, normal, low
-  dueDate     DateTime? @map("due_date")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+model StripeCustomer {
+  userId           String   @id @map("user_id") @db.Uuid
+  stripeCustomerId String   @map("stripe_customer_id")
+  email            String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  @@map("stripe_customers")
+}
 
-  @@index([clientId])
-  @@map("action_items")
+model StripeSubscription {
+  stripeSubscriptionId String    @id @map("stripe_subscription_id")
+  userId               String    @map("user_id") @db.Uuid
+  stripeCustomerId     String    @map("stripe_customer_id")
+  status               String
+  planId               String?   @map("plan_id")
+  priceId              String?   @map("price_id")
+  interval             String?
+  currentPeriodStart   DateTime? @map("current_period_start") @db.Timestamptz
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
+  trialEnd             DateTime? @map("trial_end") @db.Timestamptz
+  cancelAtPeriodEnd    Boolean   @map("cancel_at_period_end")
+  canceledAt           DateTime? @map("canceled_at") @db.Timestamptz
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("stripe_subscriptions")
 }
 
 // ==========================================
-// 9. DOCUMENTS VAULT
+// 12. EMAIL PREFERENCES
 // ==========================================
-model Document {
-  id        String   @id @default(uuid())
-  clientId  String   @map("client_id")
-  name      String
-  code      String?
-  type      String   @default("General") // Invoice, Tax Document, Statement, Report
-  size      String?
-  source    String   @default("Uploaded") // QuickBooks, Uploaded, Chase Feed
-  fileUrl   String?  @map("file_url")
-  createdAt DateTime @default(now()) @map("created_at")
+model EmailPreference {
+  userId                String    @id @map("user_id") @db.Uuid
+  aiSummaryEnabled      Boolean   @map("ai_summary_enabled")
+  marketingEnabled      Boolean   @map("marketing_enabled")
+  unsubscribedAt        DateTime? @map("unsubscribed_at") @db.Timestamptz
+  welcomeSnapshotSentAt DateTime? @map("welcome_snapshot_sent_at") @db.Timestamptz
+  lastSummarySentAt     DateTime? @map("last_summary_sent_at") @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  @@map("email_preferences")
+}
 
-  @@index([clientId])
-  @@map("documents")
+// ==========================================
+// 13. ADVISOR BOOKINGS
+// ==========================================
+model AdvisorBooking {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  calendlyEventUri   String?   @map("calendly_event_uri")
+  calendlyInviteeUri String?   @map("calendly_invitee_uri")
+  eventType          String?   @map("event_type")
+  scheduledAt        DateTime? @map("scheduled_at") @db.Timestamptz
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("advisor_bookings")
 }

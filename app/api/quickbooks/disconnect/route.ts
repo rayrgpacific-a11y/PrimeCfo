@@ -38,6 +38,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await prisma.quickbooksConnection.updateMany({
+      where: { clientId: targetClientId },
+      data: {
+        status: 'disconnected',
+        lastRefreshError: `Disconnected by ${session.email} on ${new Date().toISOString()}`,
+      },
+    });
+
     // 2. Remove encrypted tokens from vault
     await prisma.qboToken.deleteMany({
       where: { clientId: targetClientId },

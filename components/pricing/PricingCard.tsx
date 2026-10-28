@@ -74,7 +74,7 @@ export default function PricingCard({ plan, billingPeriod }: PricingCardProps) {
       {/* Card Actions */}
       <div className="pt-6 mt-6 border-t border-slate-800/60">
         <Link
-          href={`/connect?plan=${plan.id}`}
+          href={`/signup?plan=${plan.id}`}
           className={`w-full py-3 px-4 rounded-xl text-center text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
             plan.popular
               ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white hover:from-teal-400 hover:to-emerald-400 shadow-lg shadow-teal-500/25'

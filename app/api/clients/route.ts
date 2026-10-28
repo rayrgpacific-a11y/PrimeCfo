@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireOperatorSession } from '@/lib/auth';
-import { DEFAULT_SAMPLE_CLIENTS } from '@/data/admin-mock-data';
 
 // Helper to format Prisma Client entity to the Admin Dashboard Client interface
 function formatClient(c: any) {
@@ -41,15 +40,6 @@ export async function GET() {
         clientName: 'asc'
       }
     });
-
-    if (clients.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: DEFAULT_SAMPLE_CLIENTS,
-        isSampleData: true,
-        count: DEFAULT_SAMPLE_CLIENTS.length
-      });
-    }
 
     const formatted = clients.map(formatClient);
 

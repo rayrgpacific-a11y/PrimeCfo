@@ -43,7 +43,7 @@ import {
   ViewType 
 } from '@/types/admin';
 import { calculateAssetTotals, timeFrameOptions } from '@/lib/admin-utils';
-import { DEFAULT_SAMPLE_CLIENTS, getSampleQuickBooksData } from '@/data/admin-mock-data';
+import { generateFinancialSummaryPdf } from '@/lib/pdf-export';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -94,6 +94,10 @@ function DashboardContent({
   const [qbAlertDismissed, setQbAlertDismissed] = useState(false);
   const [notes, setNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [actionItems, setActionItems] = useState<any[]>([]);
+  const [actionItemsLoading, setActionItemsLoading] = useState(false);
+  const [isResolvingAlerts, setIsResolvingAlerts] = useState(false);
   
   // Assets state
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -112,86 +116,38 @@ function DashboardContent({
     totalCash: 0,
     accountBalances: [],
     cashFlow: {
-      inflows: 520000,
-      outflows: 380000,
-      net: 140000
+      inflows: 0,
+      outflows: 0,
+      net: 0
     },
-    creditLines: [
-      { lender: 'Chase Commercial', limit: 500000, used: 150000, available: 350000, rate: 7.5 },
-      { lender: 'Wells Fargo Revolver', limit: 250000, used: 0, available: 250000, rate: 8.0 }
-    ],
-    upcomingTransactions: [
-      { date: '2024-11-15', description: 'Enterprise Inflow - Inv #1042', amount: 85000, type: 'inflow' },
-      { date: '2024-11-16', description: 'Mid-Month Payroll Run', amount: 125000, type: 'outflow' },
-      { date: '2024-11-18', description: 'Vendor Payment - Cloud Hosting', amount: 32000, type: 'outflow' },
-      { date: '2024-11-20', description: 'Retainer Deposit - Client #1043', amount: 95000, type: 'inflow' }
-    ]
+    creditLines: [],
+    upcomingTransactions: []
   });
 
   // Analytics KPI & variance data
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
     kpis: {
-      grossMargin: 42.5,
-      netMargin: 18.3,
-      currentRatio: 2.1,
-      quickRatio: 1.8,
-      dso: 45,
-      dpo: 30,
-      burnRate: 280000,
-      runway: 10.2
+      grossMargin: 0,
+      netMargin: 0,
+      currentRatio: 0,
+      quickRatio: 0,
+      dso: 0,
+      dpo: 0,
+      burnRate: 0,
+      runway: 0
     },
     trends: {
-      revenue: [
-        { month: 'Jul', value: 420000 },
-        { month: 'Aug', value: 485000 },
-        { month: 'Sep', value: 520000 },
-        { month: 'Oct', value: 510000 },
-        { month: 'Nov', value: 495000 }
-      ],
-      expenses: [
-        { month: 'Jul', value: 350000 },
-        { month: 'Aug', value: 380000 },
-        { month: 'Sep', value: 365000 },
-        { month: 'Oct', value: 390000 },
-        { month: 'Nov', value: 380000 }
-      ]
+      revenue: [],
+      expenses: []
     },
     budgetVariance: {
-      revenue: { actual: 2430000, budget: 2500000, variance: -2.8 },
-      expenses: { actual: 1865000, budget: 1800000, variance: 3.6 }
+      revenue: { actual: 0, budget: 0, variance: 0 },
+      expenses: { actual: 0, budget: 0, variance: 0 }
     }
   });
 
-  // Alerts data
-  const [alerts, setAlerts] = useState<Alert[]>([
-    {
-      id: '1',
-      severity: 'critical',
-      category: 'Cash Horizon',
-      title: 'Target Cash Threshold Alert',
-      description: 'Projected net balance will approach working capital threshold within 14 days.',
-      actionRequired: true,
-      timestamp: '2024-11-14T10:30:00'
-    },
-    {
-      id: '2',
-      severity: 'warning',
-      category: 'Collections',
-      title: 'Invoice Aging > 30 Days',
-      description: 'Invoice #1040 ($85,000) is past due date for Acme subsidiary.',
-      actionRequired: true,
-      timestamp: '2024-11-14T09:15:00'
-    },
-    {
-      id: '3',
-      severity: 'info',
-      category: 'General Ledger',
-      title: 'Intuit QBO Automatic Sync Verified',
-      description: 'Chart of accounts and customer ledger reconciliation synchronized.',
-      actionRequired: false,
-      timestamp: '2024-11-14T08:00:00'
-    }
-  ]);
+  // Real Alerts data fetched from authentic database
+  const [alerts, setAlerts] = useState<Alert[]>([]);
 
   // Fetch real assets from database scoped to current client
   const fetchAssets = async (clientId: string): Promise<Asset[]> => {
@@ -236,9 +192,172 @@ function DashboardContent({
     if (selectedClient) {
       fetchClientData(selectedClient);
       fetchAssets(selectedClient.client_id);
-      setNotes(selectedClient.notes || '');
+      fetchNotes(selectedClient.client_id);
+      fetchActionItems(selectedClient.client_id);
+      fetchAlerts(selectedClient.client_id);
     }
   }, [selectedClient, timeFrame]);
+
+  const fetchAlerts = async (clientId: string) => {
+    try {
+      const res = await fetch(`/api/alerts?clientId=${encodeURIComponent(clientId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && Array.isArray(json.data)) {
+          setAlerts(json.data);
+          return;
+        }
+      }
+      setAlerts([]);
+    } catch (e) {
+      console.warn('Failed to fetch alerts for client:', e);
+      setAlerts([]);
+    }
+  };
+
+  const fetchNotes = async (clientId: string) => {
+    try {
+      const res = await fetch(`/api/notes?clientId=${encodeURIComponent(clientId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && json.data.length > 0) {
+          setNotes(json.data[0].content);
+          return;
+        }
+      }
+      setNotes(selectedClient?.notes || '');
+    } catch (e) {
+      console.warn('Failed to fetch notes for client:', e);
+      setNotes(selectedClient?.notes || '');
+    }
+  };
+
+  const fetchActionItems = async (clientId: string) => {
+    setActionItemsLoading(true);
+    try {
+      const res = await fetch(`/api/action-items?clientId=${encodeURIComponent(clientId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          setActionItems(json.data);
+          return;
+        }
+      }
+      setActionItems([]);
+    } catch (e) {
+      console.warn('Failed to fetch action items:', e);
+      setActionItems([]);
+    } finally {
+      setActionItemsLoading(false);
+    }
+  };
+
+  const saveNotes = async () => {
+    if (!selectedClient) return;
+    setIsSavingNotes(true);
+    try {
+      const res = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: selectedClient.client_id,
+          content: notes,
+          author: 'CFO Lead'
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save advisory notes');
+      }
+      setEditingNotes(false);
+    } catch (err: any) {
+      console.error('Error saving notes:', err);
+      alert(err.message || 'Error saving notes');
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const handleToggleActionItem = async (id: string, isCompleted: boolean) => {
+    try {
+      setActionItems(prev => prev.map(item => item.id === id ? { ...item, isCompleted } : item));
+      await fetch('/api/action-items', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, isCompleted })
+      });
+    } catch (err) {
+      console.error('Failed to toggle action item:', err);
+    }
+  };
+
+  const handleAddActionItem = async (title: string, priority: string, dueDate?: string) => {
+    if (!selectedClient) return;
+    try {
+      const res = await fetch('/api/action-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: selectedClient.client_id,
+          title,
+          priority,
+          dueDate
+        })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          setActionItems(prev => [json.data, ...prev]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to add action item:', err);
+    }
+  };
+
+  const handleDeleteActionItem = async (id: string) => {
+    try {
+      setActionItems(prev => prev.filter(item => item.id !== id));
+      await fetch(`/api/action-items?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.error('Failed to delete action item:', err);
+    }
+  };
+
+  const handleMarkAllAlertsRead = async () => {
+    if (!selectedClient) return;
+    setIsResolvingAlerts(true);
+    try {
+      setAlerts([]);
+      await fetch('/api/alerts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: selectedClient.client_id,
+          resolveAll: true
+        })
+      });
+    } catch (err) {
+      console.error('Failed to resolve all alerts:', err);
+    } finally {
+      setIsResolvingAlerts(false);
+    }
+  };
+
+  const handleResolveAlert = async (id: string) => {
+    try {
+      setAlerts(prev => prev.filter(a => a.id !== id));
+      await fetch('/api/alerts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, isResolved: true })
+      });
+    } catch (err) {
+      console.error('Failed to resolve alert:', err);
+    }
+  };
 
   const fetchClients = async () => {
     try {
@@ -251,32 +370,89 @@ function DashboardContent({
           return;
         }
       }
-      setClients(DEFAULT_SAMPLE_CLIENTS);
-      setSelectedClient(DEFAULT_SAMPLE_CLIENTS[0]);
+      setClients([]);
+      setSelectedClient(null);
     } catch (error) {
-      console.warn('API clients fetch fell back to demo clients:', error);
-      setClients(DEFAULT_SAMPLE_CLIENTS);
-      setSelectedClient(DEFAULT_SAMPLE_CLIENTS[0]);
+      console.warn('API clients fetch failed:', error);
+      setClients([]);
+      setSelectedClient(null);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchClientData = async (client: Client) => {
-    // If not connected to QBO or using demo client
+    setRefreshing(true);
+
+    // If client is not connected to QuickBooks, reset qbData and hydrate authentic Supabase metrics
     if (!client.client_qbo_connections?.[0]) {
-      setQbData(getSampleQuickBooksData(client));
+      setQbData(null);
+      try {
+        const mRes = await fetch(`/api/metrics?clientId=${encodeURIComponent(client.client_id)}&period=${timeFrame}`);
+        if (mRes.ok) {
+          const mJson = await mRes.json();
+          if (mJson.data) {
+            const m = mJson.data;
+            const burnRate = m.cashRunway > 0 && m.cashPosition > 0 ? Math.round(m.cashPosition / m.cashRunway) : 0;
+            setTreasuryData({
+              totalCash: m.cashPosition || 0,
+              accountBalances: [],
+              cashFlow: {
+                inflows: m.revenue || 0,
+                outflows: (m.revenue || 0) - (m.netProfit || 0),
+                net: m.netProfit || 0
+              },
+              creditLines: [],
+              upcomingTransactions: []
+            });
+            setAnalyticsData({
+              kpis: {
+                grossMargin: m.profitMargin || 0,
+                netMargin: m.profitMargin || 0,
+                currentRatio: 0,
+                quickRatio: 0,
+                dso: m.arAging > 0 ? 30 : 0,
+                dpo: 0,
+                burnRate,
+                runway: m.cashRunway || 0
+              },
+              trends: {
+                revenue: (m.monthlyTrajectory || []).map((t: any) => ({ month: t.label, value: t.revenue })),
+                expenses: (m.monthlyTrajectory || []).map((t: any) => ({ month: t.label, value: t.expenses }))
+              },
+              budgetVariance: {
+                revenue: { actual: m.revenue || 0, budget: m.revenue || 0, variance: 0 },
+                expenses: { actual: (m.revenue || 0) - (m.netProfit || 0), budget: (m.revenue || 0) - (m.netProfit || 0), variance: 0 }
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load metrics for unconnected client:', e);
+      } finally {
+        setRefreshing(false);
+      }
       return;
     }
 
-    setRefreshing(true);
     const connection = client.client_qbo_connections[0];
     
     try {
-      const response = await fetch(
-        `/api/quickbooks/customer?clientId=${client.client_id}&customerId=${connection.customer_id}&companyId=${connection.company_id}&timeFrame=${timeFrame}`
-      );
+      const [response, metricsRes] = await Promise.all([
+        fetch(
+          `/api/quickbooks/customer?clientId=${client.client_id}&customerId=${connection.customer_id}&companyId=${connection.company_id}&timeFrame=${timeFrame}`
+        ),
+        fetch(`/api/metrics?clientId=${encodeURIComponent(client.client_id)}&period=${timeFrame}`)
+      ]);
       
+      let metricsTrajectory: any[] = [];
+      if (metricsRes.ok) {
+        const mJson = await metricsRes.json();
+        if (mJson.data?.monthlyTrajectory) {
+          metricsTrajectory = mJson.data.monthlyTrajectory;
+        }
+      }
+
       if (response.ok) {
         const data = await response.json();
         setQbData(data);
@@ -285,7 +461,7 @@ function DashboardContent({
         if (data.treasury) {
           setTreasuryData(prev => ({
             ...prev,
-            totalCash: data.treasury.totalCash,
+            totalCash: data.treasury.totalCash || 0,
             accountBalances: data.treasury.accountBalances && data.treasury.accountBalances.length > 0 
               ? data.treasury.accountBalances 
               : prev.accountBalances,
@@ -308,6 +484,10 @@ function DashboardContent({
               burnRate: data.kpis.burnRate ?? prev.kpis.burnRate,
               runway: data.kpis.runway ?? prev.kpis.runway
             },
+            trends: metricsTrajectory.length > 0 ? {
+              revenue: metricsTrajectory.map((t: any) => ({ month: t.label, value: t.revenue })),
+              expenses: metricsTrajectory.map((t: any) => ({ month: t.label, value: t.expenses }))
+            } : prev.trends,
             budgetVariance: {
               ...prev.budgetVariance,
               revenue: {
@@ -320,45 +500,6 @@ function DashboardContent({
               }
             }
           }));
-        }
-
-        // Generate verified alerts based on live QuickBooks invoice status
-        if (data.invoices) {
-          const overdueInvoices = data.invoices.recentInvoices?.filter((i: any) => i.balance > 0 && new Date(i.dueDate) < new Date()) || [];
-          if (data.invoices.overdueAmount > 0) {
-            setAlerts([
-              {
-                id: 'qb-overdue',
-                severity: 'warning',
-                category: 'Collections',
-                title: `Overdue Invoices (${overdueInvoices.length} Past Due)`,
-                description: `$${data.invoices.overdueAmount.toLocaleString()} in client invoices requires collections follow-up.`,
-                actionRequired: true,
-                timestamp: new Date().toISOString()
-              },
-              {
-                id: 'qb-sync',
-                severity: 'info',
-                category: 'Integration',
-                title: 'QuickBooks General Ledger Synchronized',
-                description: `Live connection to ${data.company?.legalName || 'QuickBooks Online'} active. Cash position verified at $${data.treasury?.totalCash?.toLocaleString()}.`,
-                actionRequired: false,
-                timestamp: new Date().toISOString()
-              }
-            ]);
-          } else {
-            setAlerts([
-              {
-                id: 'qb-sync',
-                severity: 'info',
-                category: 'Integration',
-                title: 'QuickBooks General Ledger Synchronized',
-                description: `Live connection to ${data.company?.legalName || 'QuickBooks Online'} active. All client invoices in good standing.`,
-                actionRequired: false,
-                timestamp: new Date().toISOString()
-              }
-            ]);
-          }
         }
 
         // Auto-seed real QuickBooks GL fixed assets if client connected and asset register is currently empty
@@ -391,34 +532,16 @@ function DashboardContent({
           }
         }
       } else {
-        setQbData(getSampleQuickBooksData(client));
+        setQbData(null);
       }
     } catch (error) {
       console.error('Error fetching QB data:', error);
-      setQbData(getSampleQuickBooksData(client));
+      setQbData(null);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const saveNotes = async () => {
-    if (!selectedClient) return;
-    
-    try {
-      await supabase
-        .from('clients')
-        .update({ notes })
-        .eq('client_id', selectedClient.client_id);
-      
-      setEditingNotes(false);
-      setSelectedClient({ ...selectedClient, notes });
-    } catch (error) {
-      console.error('Error saving notes:', error);
-      // In demo mode, still update local state
-      setEditingNotes(false);
-      setSelectedClient({ ...selectedClient, notes });
-    }
-  };
 
   const connectQBFromDashboard = (clientId: string) => {
     window.location.href = `/api/quickbooks/auth?clientId=${clientId}&returnTo=dashboard`;
@@ -587,20 +710,33 @@ function DashboardContent({
   };
 
   const handleExport = () => {
+    if (!selectedClient) return;
     setIsExporting(true);
-    setTimeout(() => {
+    try {
+      const timeFrameLabel = timeFrameOptions.find(t => t.value === timeFrame)?.label || 'Last 30 Days';
+      const revenue = qbData?.invoices?.totalAmount ?? qbData?.profitLoss?.revenue ?? 0;
+      const netIncome = (qbData?.profitLoss?.revenue ?? 0) - (qbData?.expenses?.totalAmount ?? 0);
+      const cash = treasuryData.totalCash || (qbData?.treasury?.totalCash ?? 0);
+
+      generateFinancialSummaryPdf({
+        clientName: selectedClient.company_name || selectedClient.client_name || 'Client Portfolio',
+        periodLabel: timeFrameLabel,
+        basis: 'Cash',
+        revenue,
+        netIncome,
+        cash,
+        grossMargin: analyticsData.kpis.grossMargin,
+        netMargin: analyticsData.kpis.netMargin,
+        currentRatio: analyticsData.kpis.currentRatio,
+        quickRatio: analyticsData.kpis.quickRatio,
+        dso: analyticsData.kpis.dso,
+        filename: `PrimeCFO-Executive-Summary-${(selectedClient.company_name || selectedClient.client_name || 'portfolio').toLowerCase().replace(/\s+/g, '-')}-${timeFrame}.pdf`
+      });
+    } catch (e) {
+      console.error('Failed to generate export PDF:', e);
+    } finally {
       setIsExporting(false);
-      const element = document.createElement('a');
-      const timeFrameLabel = timeFrameOptions.find(t => t.value === timeFrame)?.label || timeFrame;
-      const file = new Blob([
-        `PrimeCFO Executive Summary - ${selectedClient?.client_name || 'Portfolio'}\nCompany: ${selectedClient?.company_name || 'N/A'}\nPeriod: ${timeFrameLabel}\nCustomer AR: $${qbData?.customer?.balance ?? 0}\nTotal Cash: $${treasuryData.totalCash}\nBook Assets: $${assetTotals.totalCurrentValue}`
-      ], { type: 'text/plain' });
-      element.href = URL.createObjectURL(file);
-      element.download = `PrimeCFO-AdminReport-${selectedClient?.client_name || 'portfolio'}-${timeFrame}.txt`;
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-    }, 800);
+    }
   };
 
   if (loading) {
@@ -838,12 +974,15 @@ function DashboardContent({
           )}
 
           {activeView === 'documents' && (
-            <DocumentsTab />
+            <DocumentsTab selectedClient={selectedClient} />
           )}
 
           {activeView === 'alerts' && (
             <AlertsTab 
               alerts={alerts}
+              onMarkAllRead={handleMarkAllAlertsRead}
+              onResolveAlert={handleResolveAlert}
+              isResolving={isResolvingAlerts}
             />
           )}
 
@@ -861,6 +1000,12 @@ function DashboardContent({
               editingNotes={editingNotes}
               setEditingNotes={setEditingNotes}
               onSaveNotes={saveNotes}
+              isSavingNotes={isSavingNotes}
+              actionItems={actionItems}
+              onToggleActionItem={handleToggleActionItem}
+              onAddActionItem={handleAddActionItem}
+              onDeleteActionItem={handleDeleteActionItem}
+              actionItemsLoading={actionItemsLoading}
             />
           )}
         </div>
@@ -877,54 +1022,68 @@ function DashboardContent({
               Select an existing client entity to inspect their live financial ratios, general ledger entries, cash runway, and depreciation schedules.
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-              <button
-                type="button"
-                onClick={() => setSelectedClient(clients[0] || DEFAULT_SAMPLE_CLIENTS[0])}
-                className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-xl hover:from-teal-400 hover:to-emerald-400 font-semibold text-xs transition-all shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
-              >
-                <span>Open Acme Holdings Portfolio</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <Link
-                href="/admin/clients/add"
-                className="px-5 py-2.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl hover:bg-slate-700 font-semibold text-xs transition-colors cursor-pointer flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Register New Client</span>
-              </Link>
-            </div>
-
-            {/* Quick Select Client Cards */}
-            <div className="border-t border-slate-800/80 pt-8 text-left">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 text-center">
-                Available Client Portfolios
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {(clients.length > 0 ? clients : DEFAULT_SAMPLE_CLIENTS).map(client => (
+            {clients.length > 0 ? (
+              <>
+                <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
-                    key={client.client_id}
                     type="button"
-                    onClick={() => setSelectedClient(client)}
-                    className="p-4 rounded-2xl bg-slate-800/40 border border-slate-800 hover:border-teal-500/50 hover:bg-slate-800/80 text-left transition-all group cursor-pointer"
+                    onClick={() => setSelectedClient(clients[0])}
+                    className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-xl hover:from-teal-400 hover:to-emerald-400 font-semibold text-xs transition-all shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-white text-xs group-hover:text-teal-300 transition-colors">
-                        {client.client_name}
-                      </span>
-                      {client.client_qbo_connections?.[0] && (
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-400 mb-2 truncate">{client.company_name || 'Independent Client'}</p>
-                    <span className="text-[11px] text-teal-400 font-medium flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                      Launch View &rarr;
-                    </span>
+                    <span>Open {clients[0].company_name || clients[0].client_name} Portfolio</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
-                ))}
+
+                  <Link
+                    href="/admin/clients/add"
+                    className="px-5 py-2.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl hover:bg-slate-700 font-semibold text-xs transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Register New Client</span>
+                  </Link>
+                </div>
+
+                {/* Quick Select Client Cards */}
+                <div className="border-t border-slate-800/80 pt-8 text-left">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 text-center">
+                    Available Client Portfolios
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {clients.map(client => (
+                      <button
+                        key={client.client_id}
+                        type="button"
+                        onClick={() => setSelectedClient(client)}
+                        className="p-4 rounded-2xl bg-slate-800/40 border border-slate-800 hover:border-teal-500/50 hover:bg-slate-800/80 text-left transition-all group cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-white text-xs group-hover:text-teal-300 transition-colors">
+                            {client.client_name}
+                          </span>
+                          {client.client_qbo_connections?.[0] && (
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mb-2 truncate">{client.company_name || 'Independent Client'}</p>
+                        <span className="text-[11px] text-teal-400 font-medium flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                          Launch View &rarr;
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-6">
+                <Link
+                  href="/admin/clients/add"
+                  className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-xl hover:from-teal-400 hover:to-emerald-400 font-semibold text-xs transition-all shadow-lg shadow-teal-500/20 cursor-pointer flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Register First Client Portfolio</span>
+                </Link>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

@@ -41,6 +41,20 @@ export default function PortalShell({ children, activeView }: PortalShellProps) 
   const [isOperator, setIsOperator] = useState<boolean>(false);
   const [qbConnected, setQbConnected] = useState<boolean>(false);
   const [alerts, setAlerts] = useState<any[]>([]);
+
+  // Advisor Booking Form State
+  const [bookingDate, setBookingDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [bookingTime, setBookingTime] = useState<string>('10:00');
+  const [bookingTopic, setBookingTopic] = useState<string>('Monthly CFO Performance Review');
+  const [bookingSubmitting, setBookingSubmitting] = useState<boolean>(false);
+  const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [recentBookings, setRecentBookings] = useState<any[]>([]);
+
   const pathname = usePathname();
   const router = useRouter();
 
@@ -73,6 +87,50 @@ export default function PortalShell({ children, activeView }: PortalShellProps) 
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (advisorModalOpen) {
+      setBookingSuccess(false);
+      setBookingError(null);
+      fetch('/api/advisor/book')
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setRecentBookings(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [advisorModalOpen]);
+
+  const handleBookSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingSubmitting(true);
+    setBookingError(null);
+    try {
+      const scheduledDateTime = new Date(`${bookingDate}T${bookingTime}:00`);
+      const res = await fetch('/api/advisor/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduledAt: scheduledDateTime.toISOString(),
+          eventType: bookingTopic,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to schedule session');
+      }
+      setBookingSuccess(true);
+      if (data.booking) {
+        setRecentBookings((prev) => [data.booking, ...prev]);
+      }
+    } catch (err: any) {
+      setBookingError(err.message || 'An error occurred');
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await fetch('/api/auth/signout', { method: 'POST' });
@@ -83,25 +141,28 @@ export default function PortalShell({ children, activeView }: PortalShellProps) 
     }
   };
 
+  const GENERIC_PROVIDERS = ['gmail', 'yahoo', 'ymail', 'rocketmail', 'hotmail', 'outlook', 'live', 'msn', 'icloud', 'proton', 'protonmail', 'zoho', 'aol', 'mail', 'gmx', 'yandex'];
+
   const getClientDisplayName = (email: string) => {
-    if (tenantName) return tenantName;
+    const isGeneric = tenantName && GENERIC_PROVIDERS.includes(tenantName.toLowerCase().trim());
+    if (tenantName && !isGeneric) return tenantName;
     if (!email) return 'My Organization';
     const prefix = email.split('@')[0];
-    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    const nameTokens = prefix
+      .split(/[._+-]/)
+      .filter(Boolean)
+      .filter((s) => !/^\d+$/.test(s))
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+      .filter((s) => !['web', 'admin', 'contact', 'info'].includes(s.toLowerCase()));
+    const formatted = nameTokens.join(' ');
+    return formatted ? `${formatted} Holdings` : 'My Organization';
   };
 
   const getInitials = (email: string) => {
-    if (tenantName) {
-      const parts = tenantName.trim().split(/\s+/);
-      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-      return tenantName.slice(0, 2).toUpperCase();
-    }
-    if (!email) return 'MO';
-    const namePart = email.split('@')[0];
-    if (namePart.length >= 2) {
-      return namePart.slice(0, 2).toUpperCase();
-    }
-    return namePart.toUpperCase();
+    const effectiveName = getClientDisplayName(email);
+    const parts = effectiveName.trim().split(/[\s._+-]+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return effectiveName.slice(0, 2).toUpperCase();
   };
 
   const displayName = getClientDisplayName(userEmail);
@@ -389,8 +450,8 @@ export default function PortalShell({ children, activeView }: PortalShellProps) 
 
       {/* Advisor Consultation Modal */}
       {advisorModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in-50 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative my-8">
             <button
               onClick={() => setAdvisorModalOpen(false)}
               className="absolute top-4 right-4 p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
@@ -403,11 +464,11 @@ export default function PortalShell({ children, activeView }: PortalShellProps) 
             </div>
 
             <h3 className="text-xl font-bold text-white mb-2">Schedule Advisory Session</h3>
-            <p className="text-sm text-slate-400 leading-relaxed mb-6">
+            <p className="text-sm text-slate-400 leading-relaxed mb-4">
               Connect directly with Andrew and your dedicated CPA team at Prime Accounting Solutions to review your metrics, cash flow forecasts, and advisory strategy.
             </p>
 
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 mb-6 space-y-2 text-xs text-slate-300">
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 mb-5 space-y-1.5 text-xs text-slate-300">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Advisory Lead:</span>
                 <span className="font-semibold text-white">Andrew (Prime Accounting Solutions)</span>
@@ -416,24 +477,140 @@ export default function PortalShell({ children, activeView }: PortalShellProps) 
                 <span className="text-slate-500">Contact Email:</span>
                 <span className="text-teal-400">andrew@primeaccsolutions.com</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Response Window:</span>
-                <span className="text-slate-400">Within 24 business hours</span>
-              </div>
             </div>
+
+            {bookingSuccess ? (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl mb-6 text-center space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                <h4 className="text-sm font-bold text-white">Advisory Session Confirmed!</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Your session request has been recorded into the Prime advisory calendar. Andrew's office will prepare your financial workpapers and send a calendar invite.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setBookingSuccess(false)}
+                  className="mt-2 text-xs font-semibold text-teal-400 hover:text-teal-300 cursor-pointer"
+                >
+                  Schedule Another Session
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleBookSession} className="space-y-4 mb-6">
+                {bookingError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs text-rose-300 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    <span>{bookingError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Session Date
+                    </label>
+                    <input
+                      type="date"
+                      value={bookingDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setBookingDate(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-teal-500 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Preferred Time
+                    </label>
+                    <select
+                      value={bookingTime}
+                      onChange={(e) => setBookingTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-teal-500 transition-colors cursor-pointer"
+                    >
+                      <option value="09:00">09:00 AM (EST)</option>
+                      <option value="10:00">10:00 AM (EST)</option>
+                      <option value="11:00">11:00 AM (EST)</option>
+                      <option value="13:00">01:00 PM (EST)</option>
+                      <option value="14:00">02:00 PM (EST)</option>
+                      <option value="15:00">03:00 PM (EST)</option>
+                      <option value="16:00">04:00 PM (EST)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    Advisory Focus
+                  </label>
+                  <select
+                    value={bookingTopic}
+                    onChange={(e) => setBookingTopic(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-teal-500 transition-colors cursor-pointer"
+                  >
+                    <option value="Monthly CFO Performance Review">Monthly CFO Performance Review</option>
+                    <option value="Cash Flow & Runway Optimization">Cash Flow &amp; Runway Optimization</option>
+                    <option value="Tax Planning & Owner Compensation">Tax Planning &amp; Owner Compensation</option>
+                    <option value="QuickBooks Reconciliation & GL Deep-Dive">QuickBooks Reconciliation &amp; GL Deep-Dive</option>
+                    <option value="Capital Allocation & Growth Strategy">Capital Allocation &amp; Growth Strategy</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={bookingSubmitting}
+                  className="w-full py-2.5 px-4 rounded-xl text-center text-xs sm:text-sm font-semibold text-slate-950 bg-teal-400 hover:bg-teal-300 transition-all shadow-lg shadow-teal-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {bookingSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                      <span>Confirming Schedule...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="w-4 h-4" />
+                      <span>Confirm Advisory Session</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* Previously Booked Sessions Register */}
+            {recentBookings.length > 0 && (
+              <div className="mb-5 pt-4 border-t border-slate-800">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                  Scheduled Sessions ({recentBookings.length})
+                </span>
+                <div className="space-y-2 max-h-36 overflow-y-auto">
+                  {recentBookings.slice(0, 3).map((b) => (
+                    <div key={b.id} className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-semibold text-white">{b.eventType || 'CFO Advisory Review'}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {b.scheduledAt ? new Date(b.scheduledAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Pending Confirmation'}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded">
+                        Confirmed
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3">
               <a
                 href="mailto:andrew@primeaccsolutions.com?subject=PrimeCFO%20Client%20Advisory%20Session&body=Hi%20Andrew%2C%20I%20would%20like%20to%20schedule%20our%20fractional%20CFO%20advisory%20review."
-                className="flex-1 py-3 px-4 rounded-xl text-center text-sm font-semibold text-white bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 transition-all shadow-lg shadow-teal-500/25 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 px-4 rounded-xl text-center text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700/80 transition-all flex items-center justify-center gap-2"
               >
-                <Mail className="w-4 h-4" />
-                Email Advisor Directly
+                <Mail className="w-3.5 h-3.5 text-teal-400" />
+                <span>Email Advisor Directly</span>
               </a>
               <button
                 type="button"
                 onClick={() => setAdvisorModalOpen(false)}
-                className="py-3 px-4 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+                className="py-2.5 px-4 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-slate-850 hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Close
               </button>

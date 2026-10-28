@@ -6,38 +6,50 @@ import { getServerSession } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   let returnTo = 'dashboard';
+  const baseUrl = process.env.NEXT_PUBLIC_URL || '';
+
   try {
     const session = await getServerSession();
     const searchParams = request.nextUrl.searchParams;
     const requestedClientId = searchParams.get('clientId');
     returnTo = searchParams.get('returnTo') || 'dashboard';
 
-    // If caller has a session, ensure they can only connect their own tenant unless they are an operator
-    let targetClientId = requestedClientId || session?.clientId;
-    if (session && session.role !== 'operator') {
+    // Zero-Trust Session Invariant: Unauthenticated callers cannot initiate OAuth flows
+    if (!session) {
+      return NextResponse.redirect(`${baseUrl}/login?error=auth_required`);
+    }
+
+    let targetClientId: string | undefined;
+
+    // Operators can link any designated tenant or default client
+    if (session.role === 'operator') {
+      targetClientId = requestedClientId || session.clientId;
+      if (!targetClientId) {
+        const primaryClient = await prisma.client.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        targetClientId = primaryClient?.id;
+      }
+    } else {
+      // Client users are strictly constrained to their own verified tenant
       if (!session.clientId) {
         const clientRecord = await prisma.client.findUnique({ where: { email: session.email } });
-        targetClientId = clientRecord?.id || session.userId;
+        targetClientId = clientRecord?.id;
       } else {
         targetClientId = session.clientId;
       }
     }
 
-    // Fallback to first client in DB only if operator and none provided
     if (!targetClientId) {
-      if (session?.role === 'operator') {
-        const defaultClient = await prisma.client.findFirst();
-        targetClientId = defaultClient?.id || 'demo-client';
-      } else {
-        targetClientId = 'demo-client';
-      }
+      return NextResponse.redirect(`${baseUrl}/dashboard?error=client_not_found`);
     }
 
     const oauthClient = new OAuthClient({
       clientId: process.env.QBO_CLIENT_ID || 'dummy_client_id',
       clientSecret: process.env.QBO_CLIENT_SECRET || 'dummy_client_secret',
       environment: process.env.QBO_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
-      redirectUri: process.env.QBO_REDIRECT_URI || `${process.env.NEXT_PUBLIC_URL}/api/quickbooks/callback`,
+      redirectUri: process.env.QBO_REDIRECT_URI || `${baseUrl}/api/quickbooks/callback`,
     });
 
     // Generate cryptographically signed, timestamped CSRF state
@@ -52,6 +64,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('QuickBooks auth initiation error:', error);
     const fallbackPath = returnTo === 'dashboard' ? '/dashboard' : returnTo === 'connect' ? '/connect' : '/admin/dashboard';
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL || ''}${fallbackPath}?error=auth_init_failed`);
+    return NextResponse.redirect(`${baseUrl}${fallbackPath}?error=auth_init_failed`);
   }
 }

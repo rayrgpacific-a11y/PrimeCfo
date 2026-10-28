@@ -62,7 +62,7 @@ export default function LandingPricingSection() {
               </ul>
             </div>
             <Link
-              href="/connect?plan=starter"
+              href="/signup?plan=starter"
               className="mt-8 w-full py-2.5 text-center text-sm font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
             >
               Choose Starter
@@ -88,7 +88,7 @@ export default function LandingPricingSection() {
               </ul>
             </div>
             <Link
-              href="/connect?plan=see"
+              href="/signup?plan=see"
               className="mt-8 w-full py-2.5 text-center text-sm font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
             >
               Choose See
@@ -117,7 +117,7 @@ export default function LandingPricingSection() {
               </ul>
             </div>
             <Link
-              href="/connect?plan=understand"
+              href="/signup?plan=understand"
               className="mt-8 w-full py-2.5 text-center text-sm font-semibold text-white bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 rounded-xl transition-all shadow-md shadow-teal-500/20"
             >
               Choose Understand
@@ -143,7 +143,7 @@ export default function LandingPricingSection() {
               </ul>
             </div>
             <Link
-              href="/connect?plan=act"
+              href="/signup?plan=act"
               className="mt-8 w-full py-2.5 text-center text-sm font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
             >
               Choose Act

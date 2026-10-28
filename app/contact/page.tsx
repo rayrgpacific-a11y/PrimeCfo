@@ -10,13 +10,18 @@ import {
   Send,
   CheckCircle2,
   Building,
-  Phone
+  Phone,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [responseMessage, setResponseMessage] = useState('');
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -24,9 +29,27 @@ export default function ContactPage() {
     message: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send message');
+      }
+      setResponseMessage(data.message || 'Thank you for reaching out. We will respond within one business day.');
+      setSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -147,17 +170,28 @@ export default function ContactPage() {
                   <CheckCircle2 className="w-12 h-12 text-teal-400 mx-auto" />
                   <h3 className="text-lg font-semibold text-white">Message Received!</h3>
                   <p className="text-sm text-slate-300">
-                    Thank you for reaching out. We will respond within one business day.
+                    {responseMessage || 'Thank you for reaching out. We will respond within one business day.'}
                   </p>
                   <button
-                    onClick={() => { setSubmitted(false); setForm({ name: '', email: '', topic: 'quickbooks', message: '' }); }}
-                    className="text-xs text-teal-400 underline underline-offset-4 pt-2"
+                    onClick={() => { 
+                      setSubmitted(false); 
+                      setError(null);
+                      setForm({ name: '', email: '', topic: 'quickbooks', message: '' }); 
+                    }}
+                    className="text-xs text-teal-400 underline underline-offset-4 pt-2 cursor-pointer"
                   >
                     Send another message
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {error && (
+                    <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1.5">
                       Your Name
@@ -218,10 +252,20 @@ export default function ContactPage() {
 
                   <button
                     type="submit"
-                    className="w-full py-3 px-6 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-medium text-sm rounded-xl shadow-lg shadow-teal-500/25 transition-all flex items-center justify-center gap-2"
+                    disabled={submitting}
+                    className="w-full py-3 px-6 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-white font-medium text-sm rounded-xl shadow-lg shadow-teal-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                   >
-                    <Send className="w-4 h-4" />
-                    Send Message
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Sending message...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>Send Message</span>
+                      </>
+                    )}
                   </button>
                 </form>
               )}

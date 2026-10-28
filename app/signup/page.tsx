@@ -2,13 +2,15 @@
 
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Lock, Mail } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Lock, Mail, Sparkles } from 'lucide-react';
 
 const MIN_PASSWORD_LENGTH = 12;
 
 function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const plan = searchParams.get('plan') || '';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -35,7 +37,7 @@ function SignupForm() {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, plan }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -46,7 +48,7 @@ function SignupForm() {
       }
 
       if (!data.needsEmailConfirmation) {
-        router.push('/dashboard');
+        router.push(plan ? `/connect?plan=${encodeURIComponent(plan)}` : '/connect');
         router.refresh();
         return;
       }
@@ -87,8 +89,20 @@ function SignupForm() {
 
           <h1 className="text-2xl font-semibold text-center mb-2">Create an account</h1>
           <p className="text-white/60 text-center text-sm mb-6">
-            Sign up with your email and go straight to your dashboard.
+            Sign up with your email and connect your QuickBooks books.
           </p>
+
+          {plan && (
+            <div className="mb-6 px-4 py-2.5 bg-gradient-to-r from-teal-500/15 to-emerald-500/15 border border-teal-500/30 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-teal-400" />
+                <span className="text-xs text-teal-300 font-semibold uppercase tracking-wider">Plan Selected</span>
+              </div>
+              <span className="text-xs font-bold text-white uppercase bg-teal-500/25 px-2.5 py-0.5 rounded-lg border border-teal-500/40">
+                {plan} · 14-Day Free Trial
+              </span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

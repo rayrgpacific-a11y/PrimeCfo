@@ -30,11 +30,25 @@ export default function ConnectQuickBooks() {
       .then((r) => r.json())
       .then((user) => {
         if (user.clientId) setClientId(user.clientId);
-        if (user.tenantName) setTenantName(user.tenantName);
+        const GENERIC_PROVIDERS = ['gmail', 'yahoo', 'ymail', 'rocketmail', 'hotmail', 'outlook', 'live', 'msn', 'icloud', 'proton', 'protonmail', 'zoho', 'aol', 'mail', 'gmx', 'yandex'];
+        const isGeneric = user.tenantName && GENERIC_PROVIDERS.includes(user.tenantName.toLowerCase().trim());
+        if (user.tenantName && !isGeneric) {
+          setTenantName(user.tenantName);
+        } else if (user.email) {
+          const prefix = user.email.split('@')[0];
+          const nameTokens = prefix
+            .split(/[._+-]/)
+            .filter(Boolean)
+            .filter((s: string) => !/^\d+$/.test(s))
+            .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+            .filter((s: string) => !['web', 'admin', 'contact', 'info'].includes(s.toLowerCase()));
+          const formatted = nameTokens.join(' ');
+          setTenantName(formatted ? `${formatted} Holdings` : 'Your Organization');
+        }
         if (user.isQbConnected) setIsQbConnected(true);
         if (user.qboCompanyId) setQboCompanyId(user.qboCompanyId);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -64,7 +78,7 @@ export default function ConnectQuickBooks() {
 
   return (
     <PortalShell activeView="connect">
-      <div className="max-w-4xl">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">

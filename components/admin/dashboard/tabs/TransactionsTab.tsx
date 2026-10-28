@@ -23,6 +23,14 @@ export default function TransactionsTab({ qbData }: TransactionsTabProps) {
   const overdueAmount = qbData?.invoices?.overdueAmount ?? 0;
   const netPosition = receivablesAmount - payablesAmount;
 
+  const recentInvs = qbData?.invoices?.recentInvoices || [];
+  const avgPaymentDays = recentInvs.length > 0 
+    ? Math.round(recentInvs.reduce((acc, inv) => { 
+        const diff = Math.max(1, Math.round((new Date(inv.dueDate).getTime() - new Date(inv.date).getTime()) / (1000 * 60 * 60 * 24))); 
+        return acc + diff; 
+      }, 0) / recentInvs.length) 
+    : 0;
+
   return (
     <div className="space-y-6">
       {/* Transaction Summary */}
@@ -112,7 +120,9 @@ export default function TransactionsTab({ qbData }: TransactionsTabProps) {
           </div>
           <div className="bg-slate-800/50 border border-slate-800 rounded-xl p-3.5">
             <p className="text-xs text-slate-400 font-medium">DSO (Days to Pay)</p>
-            <p className="text-xl font-bold text-teal-400 tabular-nums mt-0.5">28 Days</p>
+            <p className="text-xl font-bold text-teal-400 tabular-nums mt-0.5">
+              {avgPaymentDays > 0 ? `${avgPaymentDays} Days` : '—'}
+            </p>
           </div>
         </div>
         

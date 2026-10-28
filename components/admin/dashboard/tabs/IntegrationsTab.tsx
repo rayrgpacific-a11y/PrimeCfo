@@ -24,14 +24,20 @@ export default function IntegrationsTab({
             <h3 className="text-base font-semibold text-white tracking-tight">Active Integrations</h3>
             <p className="text-xs text-slate-400">Manage real-time data pipelines for this client portfolio</p>
           </div>
-          <span className="text-xs font-mono font-medium text-slate-400">3 of 20 connected</span>
+          <span className="text-xs font-mono font-medium text-slate-400">
+            {isQboConnected ? '1 of 3 connected' : '0 of 3 connected'}
+          </span>
         </div>
         <div className="flex gap-2">
-          <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-full font-semibold">
-            3 Active Pipelines
+          <span className={`px-3 py-1 border text-xs rounded-full font-semibold ${
+            isQboConnected 
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+              : 'bg-slate-800 border-slate-700 text-slate-400'
+          }`}>
+            {isQboConnected ? '1 Active Pipeline' : '0 Active Pipelines'}
           </span>
           <span className="px-3 py-1 bg-slate-800 border border-slate-700 text-slate-400 text-xs rounded-full font-medium">
-            17 Available Connectors
+            2 Growth Connectors Available
           </span>
         </div>
       </div>
@@ -62,8 +68,8 @@ export default function IntegrationsTab({
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Last Synced</span>
-              <span className="text-slate-300 font-mono">{isQboConnected ? '2 mins ago' : 'Never'}</span>
+              <span className="text-slate-400">Sync Mode</span>
+              <span className="text-slate-300 font-mono">{isQboConnected ? 'OAuth 2.0 Real-Time' : 'Manual Setup'}</span>
             </div>
           </div>
 
@@ -89,65 +95,67 @@ export default function IntegrationsTab({
         </div>
 
         {/* Stripe */}
-        <div className="bg-slate-900/70 border border-emerald-500/40 rounded-2xl p-6 shadow-lg hover:border-emerald-500/60 transition-all">
+        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-lg hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base font-bold text-white tracking-tight">Stripe Payments</h3>
-              <p className="text-xs text-slate-400">Credit Card & Subscriptions</p>
+              <p className="text-xs text-slate-400">Merchant Feeds & Invoices</p>
             </div>
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-800 text-slate-500 flex items-center justify-center">
+              <Link2 className="w-4 h-4" />
             </div>
           </div>
 
           <div className="space-y-2 mb-6 text-xs bg-slate-800/40 border border-slate-800 rounded-xl p-3">
             <div className="flex justify-between">
               <span className="text-slate-400">Pipeline Status</span>
-              <span className="text-emerald-400 font-semibold">Active & Webhooked</span>
+              <span className="text-teal-400 font-semibold">ACT Growth Tier</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Last Event</span>
-              <span className="text-slate-300 font-mono">5 mins ago</span>
+              <span className="text-slate-400">Webhook Gateway</span>
+              <span className="text-slate-400 font-mono">/api/stripe/webhook</span>
             </div>
           </div>
 
-          <button 
-            type="button" 
-            className="w-full py-2.5 px-4 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+          <a 
+            href="mailto:support@primecfo.ai?subject=Stripe%20Integration%20Activation"
+            className="w-full py-2.5 px-4 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
           >
-            Manage Stripe Keys
-          </button>
+            <span>Activate Stripe Connector</span>
+            <span className="text-[10px]">&rarr;</span>
+          </a>
         </div>
 
         {/* Plaid */}
-        <div className="bg-slate-900/70 border border-emerald-500/40 rounded-2xl p-6 shadow-lg hover:border-emerald-500/60 transition-all">
+        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-lg hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base font-bold text-white tracking-tight">Plaid Financial</h3>
-              <p className="text-xs text-slate-400">Bank Feeds & Cash Balances</p>
+              <p className="text-xs text-slate-400">Direct Bank Data Aggregator</p>
             </div>
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-slate-800 text-slate-500 flex items-center justify-center">
+              <Link2 className="w-4 h-4" />
             </div>
           </div>
 
           <div className="space-y-2 mb-6 text-xs bg-slate-800/40 border border-slate-800 rounded-xl p-3">
             <div className="flex justify-between">
               <span className="text-slate-400">Pipeline Status</span>
-              <span className="text-emerald-400 font-semibold">Real-Time Sync</span>
+              <span className="text-teal-400 font-semibold">Enterprise Banking</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Last Refresh</span>
-              <span className="text-slate-300 font-mono">1 min ago</span>
+              <span className="text-slate-400">Authentication</span>
+              <span className="text-slate-400 font-mono">Plaid Link OAuth</span>
             </div>
           </div>
 
-          <button 
-            type="button" 
-            className="w-full py-2.5 px-4 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+          <a 
+            href="mailto:support@primecfo.ai?subject=Plaid%20Bank%20Feed%20Activation"
+            className="w-full py-2.5 px-4 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
           >
-            Manage Bank Tokens
-          </button>
+            <span>Activate Direct Bank Feed</span>
+            <span className="text-[10px]">&rarr;</span>
+          </a>
         </div>
       </div>
     </div>

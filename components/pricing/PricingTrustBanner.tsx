@@ -8,8 +8,8 @@ export default function PricingTrustBanner() {
   return (
     <section className="bg-slate-950 border-t border-slate-900 py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p className="text-center text-[11px] sm:text-xs text-slate-500 uppercase tracking-[0.22em] font-semibold mb-8">
-          Trusted Integrations &amp; Standards
+        <p className="text-center text-[11px] sm:text-xs text-slate-400 uppercase tracking-[0.22em] font-semibold mb-8">
+          Trusted By Small Businesses · Built on Tools You Already Know
         </p>
 
         {/* Partners */}

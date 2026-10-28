@@ -4,7 +4,7 @@ import { getOrCreateClientForEmail } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
-    const { email, password, companyName } = await request.json();
+    const { email, password, companyName, plan } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -20,14 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Automatically provision Client tenant record in Prisma
-    let clientRecord: any = null;
-    try {
-      clientRecord = await getOrCreateClientForEmail(email, companyName);
-    } catch (clientErr) {
-      console.warn('Could not auto-provision client in Prisma during signup:', clientErr);
-    }
-
+    const cleanEmail = email.trim().toLowerCase();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     const isRealSupabase =
@@ -39,14 +32,8 @@ export async function POST(request: Request) {
     if (isRealSupabase) {
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: cleanEmail,
         password,
-        options: {
-          data: {
-            clientId: clientRecord?.id,
-            tenantName: clientRecord?.companyName || clientRecord?.clientName,
-          },
-        },
       });
 
       if (error) {
@@ -56,19 +43,34 @@ export async function POST(request: Request) {
         );
       }
 
+      // Provision tenant record in database only after Supabase user is confirmed valid
+      let clientRecord: any = null;
+      try {
+        clientRecord = await getOrCreateClientForEmail(cleanEmail, companyName, plan);
+      } catch (clientErr) {
+        console.warn('Could not auto-provision client in Prisma during signup:', clientErr);
+      }
+
       const needsEmailConfirmation = !data.session;
       return NextResponse.json({
         ok: true,
         needsEmailConfirmation,
-        user: { email: data.user?.email, clientId: clientRecord?.id },
+        user: { email: data.user?.email || cleanEmail, clientId: clientRecord?.id },
       });
     }
 
-    // Local / Dev Mode fallback
+    // Local / Dev Mode fallback (when Supabase credentials not yet configured)
+    let clientRecord: any = null;
+    try {
+      clientRecord = await getOrCreateClientForEmail(cleanEmail, companyName, plan);
+    } catch (clientErr) {
+      console.warn('Could not auto-provision client in Prisma in dev fallback:', clientErr);
+    }
+
     return NextResponse.json({
       ok: true,
       needsEmailConfirmation: true,
-      user: { email, clientId: clientRecord?.id },
+      user: { email: cleanEmail, clientId: clientRecord?.id },
     });
   } catch (err: any) {
     console.error('Signup error:', err);

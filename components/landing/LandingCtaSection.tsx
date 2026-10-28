@@ -26,7 +26,7 @@ export default function LandingCtaSection() {
         </p>
 
         <Link
-          href="/connect"
+          href="/signup"
           className="group px-8 py-4 bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-semibold rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all shadow-xl shadow-teal-500/25 hover:shadow-teal-500/40 inline-flex items-center gap-2"
         >
           Get Started Free

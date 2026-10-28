@@ -45,10 +45,10 @@ export default function OverviewTab({
   const isQboConnected = Boolean(selectedClient.client_qbo_connections?.[0]);
 
   const kpis = analyticsData?.kpis || {
-    grossMargin: 42.5,
-    netMargin: 18.3,
-    burnRate: 280000,
-    runway: 10.2
+    grossMargin: 0,
+    netMargin: 0,
+    burnRate: 0,
+    runway: 0
   };
 
   const metricCards = [
@@ -56,10 +56,10 @@ export default function OverviewTab({
       id: 'cash-position',
       title: 'Cash Position',
       value: formatCurrency(treasuryData.totalCash),
-      trend: '+4.8%',
-      trendUp: true,
+      trend: isQboConnected ? 'Live Feed' : 'Baseline',
+      trendUp: treasuryData.totalCash > 0,
       context: treasuryData.accountBalances.length > 0 
-        ? `Across ${treasuryData.accountBalances.length} primary bank account${treasuryData.accountBalances.length === 1 ? '' : 's'}`
+        ? `Across ${treasuryData.accountBalances.length} verified bank account${treasuryData.accountBalances.length === 1 ? '' : 's'}`
         : 'Across operating accounts',
       icon: Wallet,
       badge: 'Liquidity'
@@ -68,8 +68,8 @@ export default function OverviewTab({
       id: 'ar-balance',
       title: 'Current AR Balance',
       value: formatCurrency(qbData?.customer?.balance ?? 0),
-      trend: '-2.1%',
-      trendUp: false,
+      trend: (qbData?.invoices?.overdueAmount ?? 0) > 0 ? 'Overdue' : 'Current',
+      trendUp: (qbData?.invoices?.overdueAmount ?? 0) === 0,
       context: 'Active client accounts receivable',
       icon: DollarSign,
       badge: 'Aging'
@@ -78,8 +78,8 @@ export default function OverviewTab({
       id: 'revenue',
       title: 'Total Invoiced (YTD)',
       value: formatCurrency(qbData?.invoices?.totalAmount ?? 0),
-      trend: '+8.2%',
-      trendUp: true,
+      trend: isQboConnected ? 'Intuit Verified' : 'Baseline',
+      trendUp: (qbData?.invoices?.totalAmount ?? 0) > 0,
       context: `${qbData?.invoices?.total ?? 0} invoices processed`,
       icon: TrendingUp,
       badge: 'Revenue'
@@ -88,9 +88,9 @@ export default function OverviewTab({
       id: 'gross-margin',
       title: 'Gross Margin',
       value: `${kpis.grossMargin}%`,
-      trend: '+1.5%',
-      trendUp: true,
-      context: `Net margin benchmarked at ${kpis.netMargin}%`,
+      trend: `${kpis.netMargin}% Net`,
+      trendUp: kpis.grossMargin >= 0,
+      context: `Net margin recorded at ${kpis.netMargin}%`,
       icon: PieChart,
       badge: 'Profitability'
     },
@@ -98,8 +98,8 @@ export default function OverviewTab({
       id: 'total-assets',
       title: 'Total Registered Assets',
       value: formatCurrency(assetTotals.totalCurrentValue),
-      trend: '+12.4%',
-      trendUp: true,
+      trend: `${assets.length} Assets`,
+      trendUp: assets.length > 0,
       context: `${assets.length} registered fixed assets`,
       icon: Building2,
       badge: 'Book Value'
@@ -108,8 +108,8 @@ export default function OverviewTab({
       id: 'cash-runway',
       title: 'Cash Runway',
       value: `${kpis.runway} mo`,
-      trend: '+1.2 mo',
-      trendUp: true,
+      trend: kpis.burnRate > 0 ? `${formatCurrency(kpis.burnRate)}/mo` : 'No Burn',
+      trendUp: kpis.runway >= 6,
       context: `Burn rate approx ${formatCurrency(kpis.burnRate)}/mo`,
       icon: Clock,
       badge: 'Capital'
@@ -167,34 +167,52 @@ export default function OverviewTab({
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold">Revenue Trend</p>
-              <h3 className="text-lg font-bold text-white mt-0.5">Last 12 Months Cash Inflow &amp; AR Velocity</h3>
+              <h3 className="text-lg font-bold text-white mt-0.5">Operating Sales &amp; Invoiced Inflow</h3>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
-              +18.4% YoY
-            </span>
+            {isQboConnected && (qbData?.invoices?.totalAmount ?? 0) > 0 ? (
+              <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
+                Verified Intuit Ledger
+              </span>
+            ) : (
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-800 text-slate-400 border border-slate-700 rounded-full">
+                Baseline ($0)
+              </span>
+            )}
           </div>
 
           {/* Interactive SVG Chart matching client portal */}
           <div className="relative h-48 w-full pt-4">
-            <svg viewBox="0 0 500 150" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="adminChartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#14b8a6" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M0,130 C60,110 120,120 180,85 C240,95 300,60 360,70 C420,40 460,25 500,15 L500,150 L0,150 Z"
-                fill="url(#adminChartGradient)"
-              />
-              <path
-                d="M0,130 C60,110 120,120 180,85 C240,95 300,60 360,70 C420,40 460,25 500,15"
-                fill="none"
-                stroke="#14b8a6"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-            </svg>
+            {isQboConnected && (qbData?.invoices?.totalAmount ?? 0) > 0 ? (
+              <svg viewBox="0 0 500 150" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="adminChartGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor="#14b8a6" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M0,130 C60,110 120,120 180,85 C240,95 300,60 360,70 C420,40 460,25 500,15 L500,150 L0,150 Z"
+                  fill="url(#adminChartGradient)"
+                />
+                <path
+                  d="M0,130 C60,110 120,120 180,85 C240,95 300,60 360,70 C420,40 460,25 500,15"
+                  fill="none"
+                  stroke="#14b8a6"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                <svg viewBox="0 0 500 60" className="w-full h-12 mb-3 opacity-30" preserveAspectRatio="none">
+                  <line x1="0" y1="30" x2="500" y2="30" stroke="#64748b" strokeWidth="2" strokeDasharray="6 6" />
+                </svg>
+                <p className="text-xs font-semibold text-slate-300">No revenue trend history yet</p>
+                <p className="text-[11px] text-slate-500 max-w-sm mt-0.5">
+                  Awaiting verified QuickBooks general ledger activity or invoice creation to plot operational cash trajectory.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-3 border-t border-slate-800/80">
@@ -230,7 +248,7 @@ export default function OverviewTab({
                 </>
               ) : (
                 <>
-                  Revenue is pacing <strong>+12% MoM</strong> for {selectedClient.client_name}. Connect QuickBooks to enable automated general ledger reconciliation.
+                  Connect QuickBooks for {selectedClient.client_name} to synchronize general ledger entries, calculate live burn rate, and enable automated AI advisory forecasting.
                 </>
               )}
             </p>

@@ -91,7 +91,7 @@ export default function SettingsPage() {
 
   return (
     <PortalShell activeView="settings">
-      <div className="max-w-4xl">
+      <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">
           Settings
         </h1>
@@ -218,11 +218,10 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setReportingBasis('cash')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    reportingBasis === 'cash'
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${reportingBasis === 'cash'
                       ? 'bg-teal-500/10 border-teal-500/40 text-teal-300'
                       : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
+                    }`}
                 >
                   <p className="text-sm font-bold text-white">Cash Basis (Default)</p>
                   <p className="text-[11px] text-slate-400 mt-1">
@@ -233,11 +232,10 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setReportingBasis('accrual')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    reportingBasis === 'accrual'
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${reportingBasis === 'accrual'
                       ? 'bg-teal-500/10 border-teal-500/40 text-teal-300'
                       : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
+                    }`}
                 >
                   <p className="text-sm font-bold text-white">Accrual Basis</p>
                   <p className="text-[11px] text-slate-400 mt-1">

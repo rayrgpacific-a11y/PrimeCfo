@@ -20,7 +20,7 @@ export default function Home() {
       <FeaturesSection />
       <WorkflowSection />
       <SocialProofSection />
-      <LandingPricingSection />
+      <LandingPricingSection />  
       <SecurityBannerSection />
       <LandingCtaSection />
       <ContactSection />

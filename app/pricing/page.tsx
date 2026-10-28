@@ -27,6 +27,9 @@ export default function PricingPage() {
           onToggleBilling={setBillingPeriod} 
         />
 
+        {/* Partner Integrations & Yelp Reviews (Social Proof First) */}
+        <PricingTrustBanner />
+
         {/* 4 Tier Pricing Cards Grid */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 sm:-mt-8 mb-20 relative z-10">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -45,9 +48,6 @@ export default function PricingPage() {
 
         {/* Full Feature Comparison Table */}
         <ComparisonTableSection />
-
-        {/* Partner Integrations & Yelp Reviews */}
-        <PricingTrustBanner />
 
         {/* FAQ Accordion */}
         <FaqSection />

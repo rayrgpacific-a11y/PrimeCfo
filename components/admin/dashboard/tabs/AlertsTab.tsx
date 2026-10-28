@@ -1,17 +1,41 @@
 'use client';
 
-import React from 'react';
-import { AlertTriangle, AlertCircle, Info, CheckCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, AlertCircle, Info, CheckCheck, CheckCircle2, Loader2 } from 'lucide-react';
 import { Alert } from '@/types/admin';
 
 interface AlertsTabProps {
   alerts: Alert[];
+  onMarkAllRead?: () => void;
+  onResolveAlert?: (id: string) => void;
+  isResolving?: boolean;
 }
 
-export default function AlertsTab({ alerts }: AlertsTabProps) {
-  const criticalCount = alerts.filter(a => a.severity === 'critical').length;
-  const warningCount = alerts.filter(a => a.severity === 'warning').length;
-  const infoCount = alerts.filter(a => a.severity === 'info').length;
+export default function AlertsTab({
+  alerts,
+  onMarkAllRead,
+  onResolveAlert,
+  isResolving = false
+}: AlertsTabProps) {
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+
+  const activeAlerts = alerts.filter(a => !resolvedIds.has(a.id));
+  const criticalCount = activeAlerts.filter(a => a.severity === 'critical').length;
+  const warningCount = activeAlerts.filter(a => a.severity === 'warning').length;
+  const infoCount = activeAlerts.filter(a => a.severity === 'info').length;
+
+  const handleSingleResolve = (id: string) => {
+    setResolvedIds(prev => new Set(prev).add(id));
+    if (onResolveAlert) {
+      onResolveAlert(id);
+    }
+  };
+
+  const handleMarkAll = () => {
+    if (onMarkAllRead) {
+      onMarkAllRead();
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -70,14 +94,21 @@ export default function AlertsTab({ alerts }: AlertsTabProps) {
             <h3 className="text-base font-semibold text-white tracking-tight">Active Financial Alerts</h3>
             <p className="text-xs text-slate-400">Real-time alerts generated across general ledger & treasury accounts</p>
           </div>
-          <button type="button" className="text-xs font-semibold text-teal-400 hover:text-teal-300 flex items-center gap-1 cursor-pointer">
-            <CheckCheck className="w-3.5 h-3.5" />
-            Mark All Read
-          </button>
+          {activeAlerts.length > 0 && onMarkAllRead && (
+            <button
+              type="button"
+              onClick={handleMarkAll}
+              disabled={isResolving}
+              className="text-xs font-semibold text-teal-400 hover:text-teal-300 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500/20 transition-colors"
+            >
+              {isResolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
+              <span>Mark All Read</span>
+            </button>
+          )}
         </div>
 
         <div className="divide-y divide-slate-800/60">
-          {alerts.map(alert => {
+          {activeAlerts.map(alert => {
             const isCritical = alert.severity === 'critical';
             const isWarning = alert.severity === 'warning';
 
@@ -125,18 +156,24 @@ export default function AlertsTab({ alerts }: AlertsTabProps) {
                   {alert.actionRequired && (
                     <button 
                       type="button" 
-                      className="self-start px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-teal-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                      onClick={() => handleSingleResolve(alert.id)}
+                      className="self-start px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-teal-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Resolve Alert
+                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Resolve Alert</span>
                     </button>
                   )}
                 </div>
               </div>
             );
           })}
-          {alerts.length === 0 && (
-            <div className="p-8 text-center text-xs text-slate-500">
-              No active alerts for this client account.
+          {activeAlerts.length === 0 && (
+            <div className="p-12 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+              <p className="font-semibold text-white">All Clear &bull; No Active Alerts</p>
+              <p className="text-slate-500 max-w-sm">
+                Financial accounts, QuickBooks reconciliations, and cash reserve targets are operating normally for this client.
+              </p>
             </div>
           )}
         </div>

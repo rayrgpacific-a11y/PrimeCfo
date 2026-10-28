@@ -40,3 +40,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal agent and test artifacts
+.agent/
+.agents/
+.aider-desk/
+*.pdf
+skills-lock.json
+

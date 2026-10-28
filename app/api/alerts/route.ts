@@ -19,12 +19,48 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: [] });
     }
 
-    const alerts = await prisma.financialAlert.findMany({
+    // 1. Fetch from authentic financial_alert_events table
+    const alertEvents = await prisma.financialAlert.findMany({
       where: { clientId: targetClientId },
-      orderBy: { timestamp: 'desc' },
-    });
+      orderBy: { createdAt: 'desc' },
+    }); 
 
-    return NextResponse.json({ success: true, data: alerts });
+    let formattedAlerts = alertEvents.map((a: any) => ({
+      id: a.id,
+      clientId: a.clientId,
+      title: a.title,
+      description: a.body ?? a.description ?? '',
+      severity: a.severityKey ?? a.severity ?? 'warning',
+      category: a.alertKind ?? a.category ?? 'Financial Health',
+      actionRequired: Boolean((a.meta as any)?.actionRequired ?? a.actionRequired),
+      isResolved: a.state === 'resolved' || Boolean(a.isResolved),
+      timestamp: a.createdAt ?? a.timestamp ?? new Date(),
+    }));
+
+    // 2. If client has no manual alert events, synthesize from real ai_insights
+    if (formattedAlerts.length === 0) {
+      const insights = await prisma.aiInsight.findMany({
+        where: { clientId: targetClientId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      });
+
+      if (insights.length > 0) {
+        formattedAlerts = insights.map((ins) => ({
+          id: ins.id,
+          clientId: ins.clientId,
+          title: ins.title,
+          description: ins.description,
+          severity: ins.urgency === 'critical' ? 'critical' : ins.urgency === 'warning' ? 'warning' : 'info',
+          category: ins.category || 'AI Analysis',
+          actionRequired: ins.urgency === 'critical' || ins.urgency === 'warning',
+          isResolved: false,
+          timestamp: ins.createdAt,
+        }));
+      }
+    }
+
+    return NextResponse.json({ success: true, data: formattedAlerts });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Database error' },
@@ -43,18 +79,44 @@ export async function POST(request: Request) {
       return authResult;
     }
 
-    const alert = await prisma.financialAlert.create({
+    const { session } = authResult;
+    const targetClientId = session.role === 'operator' ? (clientId || session.clientId) : session.clientId;
+
+    if (!targetClientId) {
+      return NextResponse.json({ error: 'Valid client ID required' }, { status: 400 });
+    }
+
+    if (!title || !title.trim()) {
+      return NextResponse.json({ error: 'Alert title is required' }, { status: 400 });
+    }
+
+    const alertEvent = await prisma.financialAlert.create({
       data: {
-        clientId,
-        title,
-        description,
-        severity: severity || 'warning',
-        category: category || 'Cash Horizon',
-        actionRequired: !!actionRequired,
+        clientId: targetClientId,
+        title: title.trim(),
+        body: description ? description.trim() : '',
+        severityKey: severity || 'warning',
+        alertKind: category || 'Cash Horizon',
+        state: 'active',
+        meta: { actionRequired: !!actionRequired },
       },
     });
 
-    return NextResponse.json({ success: true, data: alert });
+    const created: any = alertEvent;
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: created.id,
+        clientId: created.clientId,
+        title: created.title,
+        description: created.body ?? created.description ?? '',
+        severity: created.severityKey ?? created.severity ?? 'warning',
+        category: created.alertKind ?? created.category ?? 'Cash Horizon',
+        actionRequired: !!actionRequired,
+        isResolved: false,
+        timestamp: created.createdAt ?? created.timestamp ?? new Date(),
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create alert' },
@@ -66,19 +128,56 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, isResolved } = body;
+    const { id, isResolved, clientId, resolveAll } = body;
 
-    const authResult = await requireTenantSession();
+    const authResult = await requireTenantSession(clientId || undefined);
     if (authResult instanceof NextResponse) {
       return authResult;
     }
 
+    const { session } = authResult;
+
+    if (resolveAll) {
+      const targetClientId = session.role === 'operator' ? (clientId || session.clientId) : session.clientId;
+      if (!targetClientId) {
+        return NextResponse.json({ error: 'Client ID required' }, { status: 400 });
+      }
+      await prisma.financialAlert.updateMany({
+        where: { clientId: targetClientId, state: 'active' },
+        data: { state: 'resolved' },
+      });
+      return NextResponse.json({ success: true, message: 'All alerts resolved' });
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'Alert ID or resolveAll required' }, { status: 400 });
+    }
+
+    // Tenant Scoping Guard: Prevent IDOR across tenants
+    const existingAlert = await prisma.financialAlert.findUnique({ where: { id } });
+    if (!existingAlert) {
+      return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'operator' && existingAlert.clientId !== session.clientId) {
+      return NextResponse.json(
+        { error: 'Forbidden: Access to this alert is denied' },
+        { status: 403 }
+      );
+    }
+
     const updated = await prisma.financialAlert.update({
       where: { id },
-      data: { isResolved: isResolved ?? true },
+      data: { state: isResolved ?? true ? 'resolved' : 'active' },
     });
 
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: updated.id,
+        isResolved: updated.state === 'resolved',
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update alert' },
@@ -86,3 +185,4 @@ export async function PATCH(request: Request) {
     );
   }
 }
+   

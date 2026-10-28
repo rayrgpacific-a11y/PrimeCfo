@@ -19,12 +19,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Client ID required' }, { status: 400 });
     }
 
-    const notes = await prisma.advisoryNote.findMany({
-      where: { clientId: targetClientId },
-      orderBy: { createdAt: 'desc' }
+    const client = await prisma.client.findUnique({
+      where: { id: targetClientId },
+      select: { notes: true, clientName: true, updatedAt: true }
     });
 
-    return NextResponse.json({ success: true, data: notes });
+    const notesList = client?.notes ? [{
+      id: `note-${targetClientId}`,
+      clientId: targetClientId,
+      content: client.notes,
+      author: 'CFO Lead',
+      createdAt: client.updatedAt || new Date()
+    }] : [];
+
+    return NextResponse.json({ success: true, data: notesList });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Database error' },
@@ -51,15 +59,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const note = await prisma.advisoryNote.create({
-      data: {
-        clientId,
-        content,
-        author: author || 'CFO Lead'
-      }
+    await prisma.client.update({
+      where: { id: clientId },
+      data: { notes: content.trim() }
     });
 
-    return NextResponse.json({ success: true, data: note });
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: `note-${clientId}`,
+        clientId,
+        content: content.trim(),
+        author: author || 'CFO Lead',
+        createdAt: new Date()
+      }
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to save note' },

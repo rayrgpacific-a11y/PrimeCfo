@@ -82,9 +82,13 @@ export default function TreasuryTab({ treasuryData }: TreasuryTabProps) {
             </div>
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight tabular-nums">
-            {treasuryData.cashFlow.outflows > 0 ? Math.round(treasuryData.totalCash / (treasuryData.cashFlow.outflows / 30)) : 30} Days
+            {treasuryData.cashFlow.outflows > 0 
+              ? `${Math.round(treasuryData.totalCash / (treasuryData.cashFlow.outflows / 30))} Days`
+              : treasuryData.totalCash > 0 ? '365+ Days' : '0 Days'}
           </p>
-          <p className="text-xs text-slate-400 mt-2">At current burn rate</p>
+          <p className="text-xs text-slate-400 mt-2">
+            {treasuryData.cashFlow.outflows > 0 ? 'At current burn rate' : 'No recorded outflows'}
+          </p>
         </div>
       </div>
 

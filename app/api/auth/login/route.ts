@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const serverAdminPassword = process.env.ADMIN_PASSWORD || process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'primecfo2024';
+    const serverAdminPassword = process.env.ADMIN_PASSWORD;
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -31,16 +31,13 @@ export async function POST(request: Request) {
     let clientId: string | undefined;
     let tenantName: string | undefined;
 
-    // Check if this is an Operator / Admin login
+    // Check if this is an Operator / Admin login attempt
     const isOperatorAttempt = cleanEmail === 'admin@primecfo.ai' || cleanEmail === 'operator@primecfo.ai';
 
-    if (isOperatorAttempt && password === serverAdminPassword) {
+    if (isOperatorAttempt && serverAdminPassword && password === serverAdminPassword) {
+      // Secure server-side operator fallback (strictly isolated to operator emails)
       isOperator = true;
       authenticatedUserId = 'operator-master-id';
-    } else if (password === serverAdminPassword) {
-      // Client login with master/demo password
-      isOperator = false;
-      authenticatedUserId = `client-${cleanEmail.replace(/[^a-z0-9]/g, '-')}`;
     } else if (isRealSupabase) {
       // Authenticate via Supabase Auth
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
