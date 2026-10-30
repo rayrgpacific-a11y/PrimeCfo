@@ -1,0 +1,167 @@
+"use client";
+
+import React from "react";
+import {
+  DollarSign,
+  CreditCard,
+  TrendingUp,
+  PieChart,
+  Wallet,
+  FileText,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+} from "lucide-react";
+import {
+  MetricCard,
+  formatCurrency,
+  formatExactCurrency,
+} from "@/lib/financialData";
+import { formatChange, getPercentChangeSafe } from "@/lib/metrics/displayRules";
+import {
+  PENDING_RECONCILIATION_CONTEXT,
+  PENDING_RECONCILIATION_LABEL,
+} from "@/lib/metrics/periodCompleteness";
+import type { DataQualityAdvisory } from "@/lib/dataQuality/types";
+import { DataQualityMetricBadge } from "./DataQualityAdvisory";
+
+interface MetricCardsProps {
+  metrics: MetricCard[];
+  dataQualityAdvisory?: DataQualityAdvisory | null;
+  clientId?: string;
+}
+
+const iconMap: Record<string, React.FC<{ className?: string }>> = {
+  DollarSign,
+  CreditCard,
+  TrendingUp,
+  PieChart,
+  Wallet,
+  FileText,
+};
+
+const colorMap: Record<string, { bg: string; icon: string; border: string }> = {
+  emerald: { bg: "bg-emerald-500/10", icon: "text-emerald-400", border: "border-emerald-500/20" },
+  red: { bg: "bg-red-500/10", icon: "text-red-400", border: "border-red-500/20" },
+  blue: { bg: "bg-blue-500/10", icon: "text-blue-400", border: "border-blue-500/20" },
+  violet: { bg: "bg-violet-500/10", icon: "text-violet-400", border: "border-violet-500/20" },
+  teal: { bg: "bg-teal-500/10", icon: "text-teal-400", border: "border-teal-500/20" },
+  amber: { bg: "bg-amber-500/10", icon: "text-amber-400", border: "border-amber-500/20" },
+};
+
+const MetricCards: React.FC<MetricCardsProps> = ({ metrics, dataQualityAdvisory, clientId }) => {
+  const gridCls =
+    metrics.length === 5
+      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"
+      : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
+
+  return (
+    <div className={gridCls}>
+      {metrics.map((metric) => {
+        const IconComponent = iconMap[metric.icon] || DollarSign;
+        const colors = colorMap[metric.color] || colorMap.teal;
+        const pending = metric.pendingReconciliation === true;
+        const percentChange = pending
+          ? 0
+          : getPercentChangeSafe(metric.value, metric.previousValue, metric.format);
+        const changeStr = pending
+          ? "—"
+          : formatChange(metric.value, metric.previousValue, metric.format);
+
+        let displayValue = "";
+        if (pending) {
+          displayValue = metric.displayOverride ?? PENDING_RECONCILIATION_LABEL;
+        } else if (metric.displayOverride) {
+          displayValue = metric.displayOverride;
+        } else if (metric.title === "Cash Runway" && metric.format !== "text") {
+          displayValue = `${metric.value.toFixed(1)} mo`;
+        } else if (metric.format === "currency") displayValue = formatCurrency(metric.value);
+        else if (metric.format === "currencyExact") displayValue = formatExactCurrency(metric.value);
+        else if (metric.format === "percentage") displayValue = `${metric.value}%`;
+        else if (metric.format === "days") displayValue = `${metric.value} days`;
+        else displayValue = metric.value.toLocaleString();
+
+        const healthRing = pending
+          ? "border-slate-600/50"
+          : metric.metricHealth === "bad"
+            ? "border-red-500/35 ring-1 ring-red-500/20"
+            : metric.metricHealth === "warn"
+              ? "border-amber-500/35 ring-1 ring-amber-500/15"
+              : metric.metricHealth === "good"
+                ? "border-emerald-500/25"
+                : "";
+
+        return (
+          <div
+            key={metric.id}
+            className={`bg-slate-800/50 border rounded-xl p-5 hover:border-slate-600 transition-all group ${
+              healthRing || "border-slate-700/50"
+            }`}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div
+                className={`w-10 h-10 ${colors.bg} border ${colors.border} rounded-xl flex items-center justify-center`}
+              >
+                <IconComponent className={`w-5 h-5 ${colors.icon}`} />
+              </div>
+              <div className="flex items-center gap-1">
+                {dataQualityAdvisory && clientId ? (
+                  <DataQualityMetricBadge
+                    advisory={dataQualityAdvisory}
+                    metricTitle={metric.title}
+                    clientId={clientId}
+                  />
+                ) : null}
+                {!metric.hideTrendBadge && !pending ? (
+                <div
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                    metric.trendIsGood
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : percentChange === 0
+                        ? "bg-slate-500/10 text-slate-400"
+                        : "bg-red-500/10 text-red-400"
+                  }`}
+                >
+                  {metric.trend === "up" ? (
+                    <ArrowUpRight className="w-3 h-3" />
+                  ) : metric.trend === "down" ? (
+                    <ArrowDownRight className="w-3 h-3" />
+                  ) : (
+                    <Minus className="w-3 h-3" />
+                  )}
+                  {changeStr}
+                </div>
+              ) : null}
+              </div>
+            </div>
+            <p className={`font-bold mb-1 ${pending ? "text-lg text-slate-300" : "text-2xl text-white"}`}>
+              {displayValue}
+            </p>
+            <p className="text-sm text-slate-400">{metric.title}</p>
+            {metric.contextLine || pending ? (
+              <p className="text-xs text-slate-500 mt-1.5 leading-snug">
+                {pending ? PENDING_RECONCILIATION_CONTEXT : metric.contextLine}
+              </p>
+            ) : null}
+            <div className="mt-3 pt-3 border-t border-slate-700/30">
+              <p className="text-xs text-slate-500">
+                Previous:{" "}
+                {pending || metric.title === "Cash Runway"
+                  ? "—"
+                  : metric.format === "currency"
+                  ? formatCurrency(metric.previousValue)
+                  : metric.format === "currencyExact"
+                    ? formatExactCurrency(metric.previousValue)
+                    : metric.format === "percentage"
+                      ? `${metric.previousValue}%`
+                      : metric.previousValue.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+export default MetricCards;

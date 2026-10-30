@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Plus_Jakarta_Sans, Fraunces, DM_Sans, Outfit } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/app/components/ui/toaster";
+import { Toaster as Sonner } from "@/app/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,98 +14,43 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const baseUrl = process.env.NEXT_PUBLIC_URL || "https://primecfo.ai";
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "600", "700"],
+});
+
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600"],
+});
 
 export const metadata: Metadata = {
-  metadataBase: new URL(baseUrl),
-  title: {
-    default: "PrimeCFO.ai | Unlocking Potential Through Financial Intelligence™",
-    template: "%s | PrimeCFO.ai",
-  },
+  title: "PrimeCFO.ai",
   description:
-    "Unlocking Potential Through Financial Intelligence™ — AI-powered clarity from QuickBooks to smarter business decisions. Strategic advisory, asset depreciation registers, and treasury intelligence.",
-  keywords: [
-    "Fractional CFO",
-    "QuickBooks Online AI",
-    "Financial Intelligence",
-    "Cash Runway Forecast",
-    "Capital Asset Depreciation",
-    "Accounting Automation",
-    "CFO Advisory Workpapers",
-  ],
-  authors: [{ name: "Prime Accounting Solutions LLC" }],
-  creator: "PrimeCFO.ai",
-  publisher: "Prime Accounting Solutions",
-  alternates: {
-    canonical: "/",
-  },
+    "Unlocking Potential Through Financial Intelligence™ — AI-powered financial insights for Prime Accounting Solutions.",
   openGraph: {
-    type: "website",
-    locale: "en_US",
-    url: baseUrl,
-    siteName: "PrimeCFO.ai",
-    title: "PrimeCFO.ai | Unlocking Potential Through Financial Intelligence™",
     description:
-      "AI-powered financial clarity from QuickBooks to smarter business decisions. Real-time cash velocity, treasury health, and automated asset registers.",
-    images: [
-      {
-        url: "/og-preview.png",
-        width: 1200,
-        height: 630,
-        alt: "PrimeCFO.ai Operator Command Center & Client Portal",
-      },
-    ],
+      "Unlocking Potential Through Financial Intelligence™ — connect QuickBooks for clear financial insight.",
+    type: "website",
+    siteName: "PrimeCFO.ai",
   },
-  twitter: {
-    card: "summary_large_image",
-    title: "PrimeCFO.ai | Financial Intelligence Platform",
-    description: "AI-powered clarity from QuickBooks to strategic business decisions.",
-    creator: "@primecfoai",
-    images: ["/og-preview.png"],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
-};
-
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "SoftwareApplication",
-      "name": "PrimeCFO.ai",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web Browser",
-      "url": baseUrl,
-      "description":
-        "Fractional CFO intelligence platform that connects directly to QuickBooks Online to provide cash flow runways, automated asset registers, and executive advisory workpapers.",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD",
-      },
-      "creator": {
-        "@type": "Organization",
-        "name": "Prime Accounting Solutions LLC",
-        "url": baseUrl,
-      },
-    },
-    {
-      "@type": "FinancialService",
-      "name": "Prime Accounting Solutions Fractional CFO",
-      "url": baseUrl,
-      "serviceType": "Fractional CFO Advisory",
-      "areaServed": "US",
-    },
-  ],
 };
 
 export default function RootLayout({
@@ -112,17 +59,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
-      <head>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      </head>
+    <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} ${fraunces.variable} ${dmSans.variable} ${outfit.variable} antialiased`}
       >
         {children}
+        <Toaster />
+        <Sonner position="top-right" richColors closeButton />
       </body>
     </html>
   );

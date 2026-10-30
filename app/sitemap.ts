@@ -1,25 +1,14 @@
-import { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://primecfo.ai';
-  const currentDate = new Date();
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.primecfo.ai').replace(/\/$/, '');
+  const now = new Date();
+  const publicPaths = ['', '/pricing', '/about', '/contact', '/security', '/privacy', '/terms', '/login', '/signup'];
 
-  const publicRoutes = [
-    '',
-    '/about',
-    '/pricing',
-    '/security',
-    '/contact',
-    '/eula',
-    '/privacy',
-    '/login',
-    '/signup',
-  ];
-
-  return publicRoutes.map((route) => ({
-    url: `${baseUrl}${route}`,
-    lastModified: currentDate,
-    changeFrequency: route === '' ? 'daily' : route === '/pricing' ? 'weekly' : 'monthly',
-    priority: route === '' ? 1.0 : route === '/pricing' ? 0.9 : 0.7,
+  return publicPaths.map((path) => ({
+    url: `${base}${path}`,
+    lastModified: now,
+    changeFrequency: path === '' ? 'weekly' : 'monthly',
+    priority: path === '' ? 1 : 0.7,
   }));
 }

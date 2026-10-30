@@ -1,88 +1,64 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import { requireTenantSession } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { guardClientAccess } from '@/lib/auth/clientAccess';
+import { getTierCapabilitiesForSession } from '@/lib/billing/userTier';
+import { evaluateFinancialAlerts } from '@/lib/alerts/evaluate';
+import { persistFinancialAlerts } from '@/lib/alerts/persist';
+import { computeCashForecast } from '@/lib/forecast/engine';
+import { loadForecastInputs } from '@/lib/forecast/inputs';
+import { supabaseAdmin } from '@/lib/qbo/supabaseAdmin';
 
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get('clientId');
+/**
+ * GET /api/alerts?clientId=&evaluate=1
+ * Act tier: rule-based alerts (spec §4). With evaluate=1, refreshes from QuickBooks and persists.
+ */
+export async function GET(request: NextRequest) {
+  const clientId = request.nextUrl.searchParams.get('clientId');
+  const shouldEval = request.nextUrl.searchParams.get('evaluate') === '1';
 
-    const authResult = await requireTenantSession(clientId || undefined);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
+  const access = await guardClientAccess(clientId);
+  if (!access.ok) return access.response;
 
-    const { session } = authResult;
-    const targetClientId = session.role === 'operator' ? (clientId || session.clientId) : session.clientId;
-
-    if (!targetClientId) {
-      return NextResponse.json({ success: true, data: [] });
-    }
-
-    const alerts = await prisma.financialAlert.findMany({
-      where: { clientId: targetClientId },
-      orderBy: { timestamp: 'desc' },
-    });
-
-    return NextResponse.json({ success: true, data: alerts });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Database error' },
-      { status: 500 }
-    );
+  const session = await getTierCapabilitiesForSession();
+  if (!session.userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-}
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { clientId, title, description, severity, category, actionRequired } = body;
-
-    const authResult = await requireTenantSession(clientId);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
-
-    const alert = await prisma.financialAlert.create({
-      data: {
-        clientId,
-        title,
-        description,
-        severity: severity || 'warning',
-        category: category || 'Cash Horizon',
-        actionRequired: !!actionRequired,
-      },
-    });
-
-    return NextResponse.json({ success: true, data: alert });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create alert' },
-      { status: 500 }
-    );
+  if (!session.capabilities.customAlerts) {
+    return NextResponse.json({ alerts: [], tier: session.capabilities.tier, notice: 'Alerts require Act tier' });
   }
-}
 
-export async function PATCH(request: Request) {
-  try {
-    const body = await request.json();
-    const { id, isResolved } = body;
+  if (!shouldEval) {
+    const sb = supabaseAdmin();
+    const { data, error } = await sb
+      .from('financial_alert_events')
+      .select('id, alert_kind, state, title, body, severity_key, updated_at')
+      .eq('client_id', access.clientId)
+      .in('state', ['active', 'acknowledged', 'snoozed'])
+      .order('updated_at', { ascending: false });
 
-    const authResult = await requireTenantSession();
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    return NextResponse.json({ alerts: data ?? [], tier: session.capabilities.tier });
+  }
 
-    const updated = await prisma.financialAlert.update({
-      where: { id },
-      data: { isResolved: isResolved ?? true },
+  try {
+    const inputs = await loadForecastInputs(access.clientId, session.capabilities);
+    const forecast = computeCashForecast(inputs, session.capabilities);
+    const evaluated = evaluateFinancialAlerts(inputs, forecast);
+    await persistFinancialAlerts(access.clientId, evaluated);
+    return NextResponse.json({
+      alerts: evaluated.map((a) => ({
+        alert_kind: a.alert_kind,
+        title: a.title,
+        body: a.body,
+        severity_key: a.severity_key,
+        state: 'active',
+      })),
+      tier: session.capabilities.tier,
     });
-
-    return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update alert' },
-      { status: 500 }
-    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Alert evaluation failed';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

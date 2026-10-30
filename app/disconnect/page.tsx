@@ -1,38 +1,66 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
-import PortalShell from '@/components/portal/PortalShell';
+import { useSearchParams } from 'next/navigation';
+import { SUPPORT_EMAIL } from '@/lib/site/contact';
 
-export default function DisconnectQuickBooks() {
+function DisconnectQuickBooksContent() {
+  const searchParams = useSearchParams();
+  const clientId = searchParams.get('clientId')?.trim() ?? null;
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isDisconnected, setIsDisconnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDisconnect = async () => {
+    if (!clientId) {
+      setError('No client specified. Use the Connect page to disconnect, or add ?clientId=... to this URL.');
+      return;
+    }
+    setError(null);
     setIsDisconnecting(true);
     try {
-      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      const clientId = params?.get('clientId') || '';
-      const url = clientId ? `/api/quickbooks/disconnect?clientId=${encodeURIComponent(clientId)}` : '/api/quickbooks/disconnect';
-      const res = await fetch(url, { method: 'POST' });
-      if (res.ok) {
-        setIsDisconnected(true);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Failed to disconnect QuickBooks');
+      const res = await fetch('/api/quickbooks/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to disconnect');
+        return;
       }
-    } catch (error) {
-      console.error('Disconnect failed:', error);
-      alert('Network error while disconnecting QuickBooks');
+      setIsDisconnected(true);
+    } catch (e) {
+      console.error('Disconnect failed:', e);
+      setError(e instanceof Error ? e.message : 'Failed to disconnect');
     } finally {
       setIsDisconnecting(false);
     }
   };
 
   return (
-    <PortalShell activeView="connect">
-      <div className="max-w-xl mx-auto py-4">
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-8 md:p-10 shadow-2xl">
+    <div className="min-h-screen bg-[#0a0a0f] text-white">
+      {/* Header */}
+      <header className="border-b border-white/10 px-6 py-4">
+        <nav className="max-w-6xl mx-auto flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-xl font-semibold tracking-tight">
+              <span className="text-emerald-400">P</span>rimeCFO.ai
+            </span>
+          </Link>
+          <Link 
+            href="https://primecfo.ai" 
+            className="text-sm text-white/60 hover:text-white transition-colors"
+          >
+            ← Back to PrimeCFO
+          </Link>
+        </nav>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-xl mx-auto px-6 py-20">
+        <div className="bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 rounded-2xl p-8 md:p-12">
           
           {isDisconnected ? (
             // Success State
@@ -61,7 +89,7 @@ export default function DisconnectQuickBooks() {
                 </Link>
                 
                 <Link
-                  href="/dashboard"
+                  href="/"
                   className="w-full py-3 px-6 rounded-xl font-medium text-white/70 bg-white/5 hover:bg-white/10 transition-all duration-200 flex items-center justify-center"
                 >
                   Return to Dashboard
@@ -85,6 +113,15 @@ export default function DisconnectQuickBooks() {
                 Are you sure you want to disconnect your QuickBooks Online account from PrimeCFO?
               </p>
 
+              {error && (
+                <p className="text-red-400 text-sm text-center mb-4">{error}</p>
+              )}
+              {!clientId && !error && (
+                <p className="text-amber-400/90 text-sm text-center mb-4">
+                  Open the <Link href="/connect" className="underline hover:text-amber-300">Connect</Link> page after logging in to disconnect, or add <code className="bg-white/10 px-1 rounded">?clientId=your-client-id</code> to this URL.
+                </p>
+              )}
+
               {/* What happens section */}
               <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 mb-8">
                 <p className="text-sm font-medium mb-3">What happens when you disconnect:</p>
@@ -107,7 +144,7 @@ export default function DisconnectQuickBooks() {
               <div className="space-y-3">
                 <button
                   onClick={handleDisconnect}
-                  disabled={isDisconnecting}
+                  disabled={isDisconnecting || !clientId}
                   className="w-full py-3 px-6 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {isDisconnecting ? (
@@ -129,7 +166,7 @@ export default function DisconnectQuickBooks() {
                 </button>
                 
                 <Link
-                  href="/dashboard"
+                  href="/"
                   className="w-full py-3 px-6 rounded-xl font-medium text-white/70 bg-white/5 hover:bg-white/10 transition-all duration-200 flex items-center justify-center"
                 >
                   Cancel
@@ -138,7 +175,39 @@ export default function DisconnectQuickBooks() {
             </>
           )}
         </div>
+
+        {/* Help Links */}
+        <div className="mt-8 flex items-center justify-center gap-6 text-sm text-white/40">
+          <Link href="/privacy" className="hover:text-white/60 transition-colors">Privacy Policy</Link>
+          <span>•</span>
+          <Link href="/terms" className="hover:text-white/60 transition-colors">Terms of Service</Link>
+          <span>•</span>
+          <Link href="/contact" className="hover:text-white/60 transition-colors">Contact Us</Link>
+          <span>•</span>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-white/60 transition-colors">
+            {SUPPORT_EMAIL}
+          </a>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 px-6 py-6 mt-20">
+        <div className="max-w-6xl mx-auto text-center text-xs text-white/40">
+          © 2026 PrimeCFO AI Inc. All rights reserved.
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+export default function DisconnectQuickBooks() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-white/20 border-t-emerald-400 rounded-full animate-spin" />
       </div>
-    </PortalShell>
+    }>
+      <DisconnectQuickBooksContent />
+    </Suspense>
   );
 }

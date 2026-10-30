@@ -1,0 +1,333 @@
+"use client";
+
+import React, { useState } from "react";
+import { RefreshCw, Calendar, ChevronDown, Download, Loader2, AlertTriangle, X, Link2 } from "lucide-react";
+import { toast } from "sonner";
+import MetricCards from "./MetricCards";
+import AIInsights from "./AIInsights";
+import RiskPosture from "./RiskPosture";
+import DataQualityAdvisoryPanel from "./DataQualityAdvisory";
+import ReconciliationBanner from "./ReconciliationBanner";
+import { MetricCard, AIInsight, Client, timeAgo } from "@/lib/financialData";
+import type { RiskPosture as RiskPostureType } from "@/lib/financialData";
+import type { DataQualityAdvisory } from "@/lib/dataQuality/types";
+import type { ReconciliationStatus } from "@/lib/qbo/reconciliationStatus";
+
+export type DashboardRange = "3m" | "6m" | "12m" | "4q";
+
+const PERIOD_OPTIONS: { range: DashboardRange; label: string }[] = [
+  { range: "3m", label: "Last 3 Months" },
+  { range: "6m", label: "Last 6 Months" },
+  { range: "12m", label: "Trailing 12 Months" },
+  { range: "4q", label: "Last 4 Quarters" },
+];
+
+interface DashboardViewProps {
+  metrics: MetricCard[];
+  /** Cash outlook / tier-gated forecast (optional). */
+  forecastPanel?: React.ReactNode;
+  insights: AIInsight[];
+  riskPosture?: RiskPostureType | null;
+  client: Client | null;
+  onNavigate: (view: string) => void;
+  selectedPeriodLabel?: string;
+  range?: DashboardRange;
+  onPeriodChange?: (range: DashboardRange) => void;
+  onSync?: () => void;
+  syncing?: boolean;
+  isLoading?: boolean;
+  /** True while refetching after a range change (cached data may still show). */
+  isRangeLoading?: boolean;
+  loadError?: unknown;
+  /** Retry dashboard data fetch after timeout/error. */
+  onRetryLoad?: () => void;
+  hasSyncedData?: boolean;
+  /** Show inline warning when sync failed due to QuickBooks not connected */
+  showSyncConnectionWarning?: boolean;
+  onDismissSyncWarning?: () => void;
+  onConnectClick?: () => void;
+  dataQualityAdvisory?: DataQualityAdvisory | null;
+  reconciliation?: ReconciliationStatus | null;
+  snapshotId?: string | null;
+  refreshingInsights?: boolean;
+}
+
+const DashboardView: React.FC<DashboardViewProps> = ({
+  metrics,
+  forecastPanel,
+  insights,
+  riskPosture,
+  client,
+  onNavigate,
+  selectedPeriodLabel = "Trailing 12 Months",
+  range = "12m",
+  onPeriodChange,
+  onSync,
+  syncing = false,
+  isLoading = false,
+  isRangeLoading = false,
+  loadError,
+  onRetryLoad,
+  hasSyncedData = false,
+  showSyncConnectionWarning = false,
+  onDismissSyncWarning,
+  onConnectClick,
+  dataQualityAdvisory,
+  reconciliation,
+  snapshotId,
+  refreshingInsights = false,
+}) => {
+  const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!client?.id || exportBusy) return;
+    setExportBusy(true);
+    try {
+      const params = new URLSearchParams({
+        clientId: client.id,
+        range,
+        companyName: client.companyName ?? "",
+      });
+      const res = await fetch(`/api/reports/pdf?${params}`, {
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `PDF failed: ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PrimeCFO-Report-${range}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      toast.error("Report download failed — please try again.");
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      {showSyncConnectionWarning && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-200">QuickBooks is not connected</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Connect QuickBooks to sync financial data for this client.
+            </p>
+            {onConnectClick && (
+              <button
+                type="button"
+                onClick={onConnectClick}
+                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 text-sm font-medium hover:bg-amber-500/30 transition-colors"
+              >
+                <Link2 className="w-4 h-4" />
+                Connect QuickBooks
+              </button>
+            )}
+          </div>
+          {onDismissSyncWarning && (
+            <button
+              type="button"
+              onClick={onDismissSyncWarning}
+              aria-label="Dismiss"
+              className="shrink-0 p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Financial Dashboard</h2>
+          <p className="text-sm text-slate-400 mt-1">
+            {client?.companyName || "Select a client"} — {selectedPeriodLabel}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <button
+              onClick={() => setPeriodDropdownOpen(!periodDropdownOpen)}
+              disabled={isRangeLoading || syncing}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white hover:bg-slate-600 transition-colors disabled:opacity-70 disabled:cursor-wait"
+            >
+              {isRangeLoading ? (
+                <Loader2 className="w-4 h-4 text-teal-400 animate-spin" />
+              ) : (
+                <Calendar className="w-4 h-4 text-slate-400" />
+              )}
+              <span className="hidden sm:inline">{selectedPeriodLabel}</span>
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            </button>
+            {periodDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setPeriodDropdownOpen(false)} />
+                <div className="absolute right-0 mt-2 w-48 bg-slate-700 border border-slate-600 rounded-xl shadow-2xl overflow-hidden z-20">
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.range}
+                      onClick={() => {
+                        onPeriodChange?.(opt.range);
+                        setPeriodDropdownOpen(false);
+                      }}
+                      disabled={isRangeLoading || syncing}
+                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-600 transition-colors disabled:opacity-60 disabled:cursor-wait ${
+                        range === opt.range ? "text-teal-400 bg-slate-600/50" : "text-slate-300"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <button
+            onClick={onSync}
+            disabled={syncing || !client?.id}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-sm font-medium rounded-lg hover:from-teal-400 hover:to-emerald-400 transition-all shadow-lg shadow-teal-500/25 disabled:opacity-50"
+          >
+            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {syncing ? "Syncing..." : "Sync"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleExportPdf()}
+            disabled={!client?.id || exportBusy}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
+          >
+            {exportBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span className="hidden sm:inline">{exportBusy ? "Preparing…" : "Export"}</span>
+          </button>
+        </div>
+      </div>
+
+      {(syncing || isLoading || isRangeLoading) && (
+        <div className="mb-6 bg-teal-500/10 border border-teal-500/20 rounded-xl p-4 flex items-center gap-3">
+          <Loader2 className="w-5 h-5 text-teal-400 animate-spin" />
+          <div>
+            <p className="text-sm font-medium text-teal-400">
+              {syncing
+                ? "Syncing financial data from QuickBooks..."
+                : isRangeLoading
+                  ? `Loading ${selectedPeriodLabel}...`
+                  : "Loading dashboard..."}
+            </p>
+            <p className="text-xs text-slate-400">
+              {syncing
+                ? "Pulling latest reports and calculating metrics"
+                : isRangeLoading
+                  ? "Updating metrics and insights for the selected period"
+                  : "Fetching summary and trends"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!!loadError && !syncing && !isLoading && (
+        <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-red-400 text-sm">
+            {loadError instanceof Error
+              ? (loadError as Error).message
+              : "We couldn't load your dashboard — Retry"}
+          </p>
+          {onRetryLoad ? (
+            <button
+              type="button"
+              onClick={onRetryLoad}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm font-medium hover:bg-red-500/30 transition-colors"
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {!isLoading && !loadError && client && !hasSyncedData && !syncing && (
+        <div className="mb-6 bg-slate-700/30 border border-slate-600 rounded-xl p-4 text-slate-400 text-sm">
+          No financial data yet. Click &quot;Sync&quot; to pull reports from QuickBooks and see metrics and trends here.
+        </div>
+      )}
+
+      {reconciliation && client?.qbStatus === "connected" ? (
+        <ReconciliationBanner
+          status={reconciliation}
+          clientId={client.id}
+          className="mb-6"
+        />
+      ) : null}
+
+      {dataQualityAdvisory &&
+      dataQualityAdvisory.rule !== "stale_books" &&
+      client?.id ? (
+        <DataQualityAdvisoryPanel
+          advisory={dataQualityAdvisory}
+          clientId={client.id}
+          className="mb-6"
+        />
+      ) : null}
+
+      <div
+        className={`mb-6 transition-opacity duration-200 ${isRangeLoading ? "opacity-60" : ""}`}
+        data-snapshot-id={snapshotId ?? undefined}
+      >
+        <MetricCards
+          metrics={metrics}
+          dataQualityAdvisory={dataQualityAdvisory}
+          clientId={client?.id}
+        />
+      </div>
+
+      {forecastPanel ? <div className="mb-6">{forecastPanel}</div> : null}
+
+      {riskPosture && (
+        <div className="mb-4">
+          <RiskPosture riskPosture={riskPosture} compact />
+        </div>
+      )}
+
+      <div className="mb-6">
+        <AIInsights
+          insights={insights}
+          compact
+          refreshingInsights={refreshingInsights}
+          snapshotId={snapshotId}
+        />
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-4">
+        <button
+          onClick={() => onNavigate("reports")}
+          className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-teal-500/30 hover:bg-slate-800 transition-all text-left group"
+        >
+          <p className="text-sm font-semibold text-white mb-1 group-hover:text-teal-400 transition-colors">View Full Reports</p>
+          <p className="text-xs text-slate-400">P&L, Balance Sheet, Cash Flow</p>
+        </button>
+        <button
+          onClick={() => onNavigate("insights")}
+          className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-violet-500/30 hover:bg-slate-800 transition-all text-left group"
+        >
+          <p className="text-sm font-semibold text-white mb-1 group-hover:text-violet-400 transition-colors">All AI Insights</p>
+          <p className="text-xs text-slate-400">{insights.length} insights available</p>
+        </button>
+        <button
+          onClick={() => onNavigate("connect")}
+          className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 hover:border-emerald-500/30 hover:bg-slate-800 transition-all text-left group"
+        >
+          <p className="text-sm font-semibold text-white mb-1 group-hover:text-emerald-400 transition-colors">Connection Status</p>
+          <p className="text-xs text-slate-400">{client?.qbStatus === "connected" ? `Last sync ${timeAgo(client.lastSync)}` : "Not connected"}</p>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default DashboardView;

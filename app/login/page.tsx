@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
@@ -10,7 +10,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   callback_failed: 'We couldn’t complete sign in. Please try again or use the link from your email.',
 };
 
-function LoginForm() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -19,20 +19,19 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState('');
-
   const signupSuccess = searchParams.get('signup') === 'success';
 
-  const navigateNext = () => {
-    const nextParam = searchParams.get('next') ?? '/dashboard';
-    const destination = nextParam.startsWith('/') ? nextParam : `/${nextParam}`;
-    router.push(destination);
+  const redirectAfterAuth = () => {
+    const next = searchParams.get('next') ?? '/dashboard';
+    const path = next.startsWith('/') ? next : `/${next}`;
+    router.push(path);
     router.refresh();
   };
 
   useEffect(() => {
-    const err = searchParams.get('error');
-    if (err && ERROR_MESSAGES[err]) {
-      setError(ERROR_MESSAGES[err]);
+    const errorCode = searchParams.get('error');
+    if (errorCode && ERROR_MESSAGES[errorCode]) {
+      setError(ERROR_MESSAGES[errorCode]);
     }
   }, [searchParams]);
 
@@ -40,15 +39,17 @@ function LoginForm() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        mfaRequired?: boolean;
+        factorId?: string;
+      };
 
       if (!res.ok) {
         setError(data.error ?? 'Sign in failed');
@@ -62,50 +63,44 @@ function LoginForm() {
         return;
       }
 
-      navigateNext();
-    } catch (err: any) {
+      redirectAfterAuth();
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMfaSubmit = async (e: React.FormEvent) => {
+  const handleVerifyMfa = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (mfaFactorId) {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/auth/mfa/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ factorId: mfaFactorId, code: mfaCode }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          setError(data.error ?? 'Verification failed');
-          setLoading(false);
-          return;
-        }
-
-        navigateNext();
-      } catch (err: any) {
-        setError(err instanceof Error ? err.message : 'Something went wrong');
-      } finally {
+    if (!mfaFactorId) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ factorId: mfaFactorId, code: mfaCode }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? 'Verification failed');
         setLoading(false);
+        return;
       }
+      redirectAfterAuth();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans">
-      {/* Header */}
+    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col">
       <header className="border-b border-white/10 px-6 py-4">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2">
             <span className="text-xl font-semibold tracking-tight">
               <span className="text-emerald-400">P</span>rimeCFO.ai
             </span>
@@ -119,13 +114,11 @@ function LoginForm() {
         </nav>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-md mx-auto px-6 py-16 flex-1 flex flex-col justify-center w-full">
-        <div className="bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
+      <main className="max-w-md mx-auto px-6 py-16 flex-1 flex flex-col justify-center">
+        <div className="bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 rounded-2xl p-8">
           <div className="w-14 h-14 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
             <Lock className="w-7 h-7 text-emerald-400" />
           </div>
-
           <h1 className="text-2xl font-semibold text-center mb-2">
             {mfaFactorId ? 'Two-factor verification' : 'Sign in'}
           </h1>
@@ -136,7 +129,7 @@ function LoginForm() {
           </p>
 
           {mfaFactorId ? (
-            <form onSubmit={handleMfaSubmit} className="space-y-4">
+            <form onSubmit={handleVerifyMfa} className="space-y-4">
               <div>
                 <label htmlFor="mfaCode" className="block text-sm font-medium text-white/80 mb-1.5">
                   Authentication code
@@ -151,7 +144,7 @@ function LoginForm() {
                   onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
                   required
                   autoFocus
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-center text-lg tracking-[0.4em] placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-colors"
+                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-center text-lg tracking-[0.4em] placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                   placeholder="000000"
                 />
               </div>
@@ -165,7 +158,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading || mfaCode.length < 6}
-                className="w-full py-3 px-4 rounded-xl font-medium text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[#0a0a0f] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl font-medium text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[#0a0a0f] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? 'Verifying…' : 'Verify & sign in'}
               </button>
@@ -177,76 +170,75 @@ function LoginForm() {
                   setMfaCode('');
                   setError('');
                 }}
-                className="w-full text-center text-sm text-white/50 hover:text-white/80 transition-colors cursor-pointer"
+                className="w-full text-center text-sm text-white/50 hover:text-white/80 transition-colors"
               >
                 Back to sign in
               </button>
             </form>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-white/80 mb-1.5">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                  <input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-colors"
-                    placeholder="you@example.com"
-                  />
-                </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-white/80 mb-1.5">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                  placeholder="you@example.com"
+                />
               </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-white/80 mb-1.5">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                  <input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-colors"
-                    placeholder="Your password"
-                  />
-                </div>
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-white/80 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                  placeholder="Your password"
+                />
               </div>
+            </div>
 
-              {signupSuccess && !error && (
-                <p className="text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-                  Account created. Sign in with your email and password.
-                </p>
-              )}
+            {signupSuccess && !error && (
+              <p className="text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                Account created. Sign in with your email and password.
+              </p>
+            )}
 
-              {error && (
-                <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                  {error}
-                </p>
-              )}
+            {error && (
+              <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 px-4 rounded-xl font-medium text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[#0a0a0f] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
-              >
-                {loading ? 'Signing in…' : 'Sign in'}
-              </button>
-            </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 px-4 rounded-xl font-medium text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[#0a0a0f] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
           )}
 
           {!mfaFactorId && (
             <p className="mt-6 text-center text-sm text-white/50">
-              Don&apos;t have an account?{' '}
+              Don’t have an account?{' '}
               <Link href="/signup" className="text-emerald-400 hover:text-emerald-300 font-medium">
                 Sign up
               </Link>
@@ -260,14 +252,8 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-          <div className="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-        </div>
-      }
-    >
-      <LoginForm />
+    <Suspense fallback={<div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center"><div className="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>}>
+      <LoginContent />
     </Suspense>
   );
 }

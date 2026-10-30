@@ -1,30 +1,177 @@
 @import "tailwindcss";
 
-html {
-  scroll-behavior: smooth;
-}
-
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --border: 215 28% 27%;
+  --input: 215 28% 27%;
+  --ring: 173 80% 40%;
+  --primary: 173 80% 40%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 215 28% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --muted: 215 28% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 215 28% 17%;
+  --accent-foreground: 210 40% 98%;
+  --popover: 222 47% 11%;
+  --popover-foreground: 210 40% 98%;
+  --card: 222 47% 11%;
+  --card-foreground: 210 40% 98%;
+  --radius: 0.5rem;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* AI Insights: larger, readable type with Plus Jakarta Sans */
+.font-insights {
+  font-family: var(--font-plus-jakarta), var(--font-sans), system-ui, sans-serif;
+}
+
+/* Styled select trigger (when using native <select>) */
+.select-primary {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-color: hsl(215 28% 17%);
+  border: 1px solid hsl(215 28% 27%);
+  border-radius: 0.75rem;
+  padding: 0.625rem 2.25rem 0.625rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: hsl(210 40% 98%);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.select-primary:hover {
+  border-color: hsl(215 28% 37%);
+}
+.select-primary:focus {
+  outline: none;
+  border-color: hsl(173 80% 40%);
+  box-shadow: 0 0 0 3px hsl(173 80% 40% / 0.2);
+}
+
+/* Custom scrollbar for Financial Reports and other content panels */
+.scrollbar-reports {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(215 28% 35%) transparent;
+}
+.scrollbar-reports::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-reports::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-reports::-webkit-scrollbar-thumb {
+  background: hsl(215 28% 35%);
+  border-radius: 4px;
+}
+.scrollbar-reports::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 28% 45%);
+}
+.scrollbar-reports::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Toast progress bar countdown animation */
+@keyframes toast-progress-shrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* Sonner: ensure close (X) button is in top-right of toast */
+[data-sonner-toast] [data-close-button] {
+  position: absolute !important;
+  top: 0.5rem !important;
+  right: 0.5rem !important;
+  left: auto !important;
+  margin: 0 !important;
+}
+
+/* Custom toast with progress bar */
+.toast-progress-bar {
+  height: 3px;
+  background: hsl(var(--muted));
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+  margin: 0 -1rem -1rem -1rem;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .financial-report-print,
+  .financial-report-print * {
+    visibility: visible !important;
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .financial-report-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #fff !important;
+    border: none !important;
+    color: #1a1a1a !important;
+  }
+  .financial-report-print table th,
+  .financial-report-print table td {
+    color: #1a1a1a !important;
+    background: #fff !important;
+    border-color: #e5e5e5 !important;
+  }
+  .financial-report-print .text-red-400 {
+    color: #c0392b !important;
+  }
+}
+
+@keyframes range-load {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
 }

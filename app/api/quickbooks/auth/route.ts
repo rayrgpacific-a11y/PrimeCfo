@@ -1,57 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuthClient from 'intuit-oauth';
-import prisma from '@/lib/prisma';
-import { generateOAuthState } from '@/lib/crypto';
-import { getServerSession } from '@/lib/auth';
+import { guardClientAccess } from '@/lib/auth/clientAccess';
+import { getQboOAuthConfig } from '@/lib/qbo/env';
+import { generateOAuthStateNonce } from '@/lib/qbo/oauthState';
+import { supabaseAdmin } from '@/lib/qbo/supabaseAdmin';
+import { createClient } from '@/lib/supabase/server';
 
+/**
+ * GET /api/quickbooks/auth
+ *
+ * Starts Intuit OAuth. Stores an opaque random state in qbo_oauth_state for callback verification.
+ */
 export async function GET(request: NextRequest) {
-  let returnTo = 'dashboard';
-  try {
-    const session = await getServerSession();
-    const searchParams = request.nextUrl.searchParams;
-    const requestedClientId = searchParams.get('clientId');
-    returnTo = searchParams.get('returnTo') || 'dashboard';
+  const searchParams = request.nextUrl.searchParams;
+  const clientId = searchParams.get('clientId')?.trim();
+  const returnTo = searchParams.get('returnTo') || 'add';
 
-    // If caller has a session, ensure they can only connect their own tenant unless they are an operator
-    let targetClientId = requestedClientId || session?.clientId;
-    if (session && session.role !== 'operator') {
-      if (!session.clientId) {
-        const clientRecord = await prisma.client.findUnique({ where: { email: session.email } });
-        targetClientId = clientRecord?.id || session.userId;
-      } else {
-        targetClientId = session.clientId;
-      }
-    }
+  const access = await guardClientAccess(clientId);
+  if (!access.ok) return access.response;
 
-    // Fallback to first client in DB only if operator and none provided
-    if (!targetClientId) {
-      if (session?.role === 'operator') {
-        const defaultClient = await prisma.client.findFirst();
-        targetClientId = defaultClient?.id || 'demo-client';
-      } else {
-        targetClientId = 'demo-client';
-      }
-    }
-
-    const oauthClient = new OAuthClient({
-      clientId: process.env.QBO_CLIENT_ID || 'dummy_client_id',
-      clientSecret: process.env.QBO_CLIENT_SECRET || 'dummy_client_secret',
-      environment: process.env.QBO_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
-      redirectUri: process.env.QBO_REDIRECT_URI || `${process.env.NEXT_PUBLIC_URL}/api/quickbooks/callback`,
-    });
-
-    // Generate cryptographically signed, timestamped CSRF state
-    const signedState = generateOAuthState(targetClientId, returnTo);
-
-    const authUri = oauthClient.authorizeUri({
-      scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
-      state: signedState,
-    });
-
-    return NextResponse.redirect(authUri);
-  } catch (error) {
-    console.error('QuickBooks auth initiation error:', error);
-    const fallbackPath = returnTo === 'dashboard' ? '/dashboard' : returnTo === 'connect' ? '/connect' : '/admin/dashboard';
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL || ''}${fallbackPath}?error=auth_init_failed`);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const stateNonce = generateOAuthStateNonce();
+
+  const sb = supabaseAdmin();
+  await sb.from('qbo_oauth_state').delete().eq('client_id', access.clientId);
+
+  const { error: insertError } = await sb.from('qbo_oauth_state').insert({
+    state: stateNonce,
+    client_id: access.clientId,
+    return_to: returnTo,
+  });
+
+  if (insertError) {
+    console.error('qbo_oauth_state insert failed:', insertError);
+    return NextResponse.json(
+      { error: 'Failed to store OAuth state; ensure table qbo_oauth_state exists.' },
+      { status: 500 }
+    );
+  }
+
+  const config = getQboOAuthConfig();
+  const oauthClient = new OAuthClient(config);
+  const authUri = oauthClient.authorizeUri({
+    scope: [OAuthClient.scopes.Accounting],
+    state: stateNonce,
+  });
+
+  return NextResponse.redirect(authUri);
 }

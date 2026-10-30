@@ -1,14 +1,42 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-
-// Initialize Supabase with service role key for server-side operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabaseAdmin } from '@/lib/qbo/supabaseAdmin';
+import { requireOperator } from '@/lib/auth/requireOperator';
+import {
+  getClientQuota,
+  upgradeMessageForClientLimit,
+} from '@/lib/billing/clientLimits';
 
 export async function POST(request: Request) {
+  const auth = await requireOperator();
+  if (!auth.ok) return auth.response;
+
+  try {
+    const quota = await getClientQuota({ firmScope: true });
+    if (!quota.canAdd) {
+      return NextResponse.json(
+        {
+          error: upgradeMessageForClientLimit(quota),
+          code: 'client_limit_reached',
+          quota: {
+            tier: quota.tier,
+            limit: quota.limit,
+            activeCount: quota.activeCount,
+          },
+          upgradePath: '/pricing',
+        },
+        { status: 402 }
+      );
+    }
+  } catch (e) {
+    console.error('Client quota check failed:', e);
+    return NextResponse.json(
+      { error: 'Could not verify client limit. Try again.', code: 'quota_check_failed' },
+      { status: 503 }
+    );
+  }
+
   let clientId: string | null = null;
+  const supabase = supabaseAdmin();
   
   try {
     const body = await request.json();
@@ -193,6 +221,7 @@ export async function POST(request: Request) {
 // GET method to test the API endpoint and check database connection
 export async function GET() {
   try {
+    const supabase = supabaseAdmin();
     // Test database connection
     const { count, error } = await supabase
       .from('clients')

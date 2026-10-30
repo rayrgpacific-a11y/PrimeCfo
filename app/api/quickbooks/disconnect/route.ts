@@ -1,59 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import { requireTenantSession } from '@/lib/auth';
+import { guardClientAccess } from '@/lib/auth/clientAccess';
+import { supabaseAdmin } from '@/lib/qbo/supabaseAdmin';
 
+/**
+ * POST /api/quickbooks/disconnect
+ * Disconnects QuickBooks for the given client: removes tokens and marks connection as disconnected.
+ * Body: { "clientId": "uuid" } or query: ?clientId=uuid
+ */
 export async function POST(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    let clientIdParam = searchParams.get('clientId');
+  let clientId: string | null = null;
 
-    if (!clientIdParam) {
-      try {
-        const body = await request.json();
-        clientIdParam = body?.clientId || null;
-      } catch {
-        // Body was empty or non-JSON
-      }
+  const contentType = request.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    try {
+      const body = await request.json();
+      clientId = (body.clientId ?? body.client_id ?? '').trim() || null;
+    } catch {
+      // ignore
     }
+  }
+  if (!clientId) {
+    clientId = request.nextUrl.searchParams.get('clientId')?.trim() ?? null;
+  }
 
-    const authResult = await requireTenantSession(clientIdParam || undefined);
-    if (authResult instanceof NextResponse) {
-      return authResult;
-    }
+  const access = await guardClientAccess(clientId);
+  if (!access.ok) return access.response;
 
-    const { session } = authResult;
-    const targetClientId = session.role === 'operator' ? (clientIdParam || session.clientId) : session.clientId;
+  const sb = supabaseAdmin();
 
-    if (!targetClientId) {
-      return NextResponse.json({ error: 'Client ID required' }, { status: 400 });
-    }
+  // 1) Remove token row so no further API calls can use this connection
+  const { error: deleteConnError } = await sb
+    .from('quickbooks_connections')
+    .delete()
+    .eq('client_id', access.clientId);
 
-    // 1. Mark connections as disconnected in Prisma
-    await prisma.clientQboConnection.updateMany({
-      where: { clientId: targetClientId },
-      data: {
-        status: 'disconnected',
-        syncEnabled: false,
-        notes: `Disconnected by ${session.email} on ${new Date().toISOString()}`,
-      },
-    });
-
-    // 2. Remove encrypted tokens from vault
-    await prisma.qboToken.deleteMany({
-      where: { clientId: targetClientId },
-    });
-
-    console.log(`✅ Client ${targetClientId} QuickBooks connection successfully disconnected`);
-
-    return NextResponse.json({
-      success: true,
-      message: 'QuickBooks account disconnected successfully.',
-    });
-  } catch (error) {
-    console.error('Error disconnecting QuickBooks:', error);
+  if (deleteConnError) {
+    console.error('QuickBooks disconnect: quickbooks_connections delete error', deleteConnError);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to disconnect' },
+      { error: 'Failed to disconnect QuickBooks' },
       { status: 500 }
     );
   }
+
+  // 2) Mark client_qbo_connections as disconnected so dashboard/API show disconnected
+  const { error: updateQboError } = await sb
+    .from('client_qbo_connections')
+    .update({ status: 'disconnected' })
+    .eq('client_id', access.clientId);
+
+  if (updateQboError) {
+    console.error('QuickBooks disconnect: client_qbo_connections update error', updateQboError);
+    // Token is already removed; still return success so UI can refresh
+  }
+
+  return NextResponse.json({ success: true, disconnected: true });
 }

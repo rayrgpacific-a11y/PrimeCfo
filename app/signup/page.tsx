@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/passwordPolicy';
 
-const MIN_PASSWORD_LENGTH = 12;
-
-function SignupForm() {
+export default function SignUpPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,15 +29,16 @@ function SignupForm() {
     }
 
     setLoading(true);
-
     try {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        needsEmailConfirmation?: boolean;
+      };
 
       if (!res.ok) {
         setError(data.error ?? 'Sign up failed');
@@ -52,7 +52,7 @@ function SignupForm() {
       }
 
       router.push('/login?signup=success');
-    } catch (err: any) {
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
@@ -60,11 +60,10 @@ function SignupForm() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans">
-      {/* Header */}
+    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col">
       <header className="border-b border-white/10 px-6 py-4">
         <nav className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2">
             <span className="text-xl font-semibold tracking-tight">
               <span className="text-emerald-400">P</span>rimeCFO.ai
             </span>
@@ -78,13 +77,11 @@ function SignupForm() {
         </nav>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-md mx-auto px-6 py-16 flex-1 flex flex-col justify-center w-full">
-        <div className="bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
+      <main className="max-w-md mx-auto px-6 py-16 flex-1 flex flex-col justify-center">
+        <div className="bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 rounded-2xl p-8">
           <div className="w-14 h-14 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
             <Lock className="w-7 h-7 text-emerald-400" />
           </div>
-
           <h1 className="text-2xl font-semibold text-center mb-2">Create an account</h1>
           <p className="text-white/60 text-center text-sm mb-6">
             Sign up with your email and go straight to your dashboard.
@@ -104,12 +101,11 @@ function SignupForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                   placeholder="you@example.com"
                 />
               </div>
             </div>
-
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-white/80 mb-1.5">
                 Password
@@ -124,12 +120,11 @@ function SignupForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={MIN_PASSWORD_LENGTH}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                   placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
                 />
               </div>
             </div>
-
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-white/80 mb-1.5">
                 Confirm password
@@ -144,7 +139,7 @@ function SignupForm() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={MIN_PASSWORD_LENGTH}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                   placeholder="Repeat password"
                 />
               </div>
@@ -159,42 +154,26 @@ function SignupForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 rounded-xl font-medium text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[#0a0a0f] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
+              className="w-full py-3 px-4 rounded-xl font-medium text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[#0a0a0f] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Creating account…' : 'Create account'}
             </button>
           </form>
 
           <p className="mt-4 text-xs text-white/45 text-center leading-relaxed">
-            Use a unique password of at least {MIN_PASSWORD_LENGTH} characters. We check against known breach lists. Enable multi-factor authentication in your account settings when available.
+            Use a unique password of at least {MIN_PASSWORD_LENGTH} characters. We check against
+            known breach lists. Enable multi-factor authentication in your account settings when
+            available.
           </p>
 
           <p className="mt-6 text-xs text-white/40 text-center">
             By creating an account, you agree to our{' '}
-            <Link href="/eula" className="underline hover:text-white/60">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
-            <Link href="/privacy" className="underline hover:text-white/60">
-              Privacy Policy
-            </Link>.
+            <Link href="/terms" className="underline hover:text-white/60">Terms of Service</Link>
+            {' '}and{' '}
+            <Link href="/privacy" className="underline hover:text-white/60">Privacy Policy</Link>.
           </p>
         </div>
       </main>
     </div>
-  );
-}
-
-export default function SignupPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-          <div className="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-        </div>
-      }
-    >
-      <SignupForm />
-    </Suspense>
   );
 }
