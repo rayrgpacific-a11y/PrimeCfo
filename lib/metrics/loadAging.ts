@@ -204,9 +204,21 @@ export async function syncClientAgingFromQbo(
 
     const [arRaw, apRaw] = await Promise.all([
 
-      fetchArAgingSummary(clientId, asOf, 'Accrual'),
+      fetchArAgingSummary(clientId, asOf, 'Accrual').catch((err) => {
 
-      fetchApAgingSummary(clientId, asOf, 'Accrual'),
+        console.warn('[aging] fetchArAgingSummary skipped (e.g. permission denied or unsupported):', err instanceof Error ? err.message : String(err));
+
+        return null;
+
+      }),
+
+      fetchApAgingSummary(clientId, asOf, 'Accrual').catch((err) => {
+
+        console.warn('[aging] fetchApAgingSummary skipped (e.g. permission denied or unsupported):', err instanceof Error ? err.message : String(err));
+
+        return null;
+
+      }),
 
     ]);
 

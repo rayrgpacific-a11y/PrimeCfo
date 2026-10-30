@@ -382,28 +382,41 @@ RULES:
 
 /* ──────────────────────── Generate Function ──────────────────── */
 
+export function generateDeterministicInsights(context: FinancialContext): GenerateResult {
+  const fallbackInsights = applyTrendAwareInsightRules([], context);
+  const riskPosture = computeRiskPosture(context, fallbackInsights);
+  return { insights: fallbackInsights, riskPosture };
+}
+
 export async function generateInsightsFromContext(context: FinancialContext): Promise<GenerateResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey?.trim()) {
-    throw new Error('OPENAI_API_KEY is not set');
+    console.info('[ai/insights] OPENAI_API_KEY is not set — returning deterministic financial insights.');
+    return generateDeterministicInsights(context);
   }
 
-  const openai = new OpenAI({ apiKey });
-  const userContent = buildPrompt(context);
+  let raw: string | null | undefined;
+  try {
+    const openai = new OpenAI({ apiKey });
+    const userContent = buildPrompt(context);
 
-  const res = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userContent },
-    ],
-    response_format: { type: 'json_object' },
-    max_tokens: 4096,
-  });
+    const res = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userContent },
+      ],
+      response_format: { type: 'json_object' },
+      max_tokens: 4096,
+    });
+    raw = res.choices?.[0]?.message?.content;
+  } catch (err) {
+    console.warn('[ai/insights] OpenAI call failed, falling back to deterministic insights:', err instanceof Error ? err.message : String(err));
+    return generateDeterministicInsights(context);
+  }
 
-  const raw = res.choices?.[0]?.message?.content;
   if (!raw?.trim()) {
-    return { insights: [], riskPosture: { rating: 'MODERATE', summary: 'Insufficient data to determine risk posture.', topAction: 'Sync latest financial data.' } };
+    return generateDeterministicInsights(context);
   }
 
   let parsed: { insights?: ParsedInsightItem[]; riskPosture?: ParsedRiskPosture };

@@ -294,6 +294,8 @@ function bucketIndex(normHeaders: string[], patterns: RegExp[]): number {
 
 export function parseArAgingBuckets(raw: unknown): AgingBuckets {
 
+  if (!raw || typeof raw !== 'object') return zero();
+
   const doc = raw as Record<string, unknown>;
 
   const cols = (doc.Columns as { Column?: Array<Record<string, unknown>> } | undefined)?.Column;
@@ -415,6 +417,12 @@ export function agingParseDiagnostics(raw: unknown): {
   buckets: AgingBuckets;
 
 } {
+
+  if (!raw || typeof raw !== 'object') {
+
+    return { qboRowCount: 0, parsedTotal: 0, buckets: zero() };
+
+  }
 
   const doc = raw as Record<string, unknown>;
 
