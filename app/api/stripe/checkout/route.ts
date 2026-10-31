@@ -41,6 +41,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Unknown plan "${planId}".` }, { status: 400 });
   }
 
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   if (!process.env.STRIPE_SECRET_KEY) {
     return NextResponse.json(
       { error: 'Billing is not configured: STRIPE_SECRET_KEY is missing on the server.' },
@@ -62,15 +71,6 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
   let customerId: string;

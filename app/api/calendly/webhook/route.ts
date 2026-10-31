@@ -12,7 +12,11 @@ export async function POST(request: NextRequest) {
   const raw = await request.text();
   const signingKey = process.env.CALENDLY_WEBHOOK_SIGNING_KEY?.trim();
 
-  if (signingKey) {
+  if (!signingKey) {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Calendly webhook signing is not configured' }, { status: 501 });
+    }
+  } else {
     const signature = request.headers.get('calendly-webhook-signature') ?? '';
     // Calendly: t=timestamp,v1=signature
     const parts = Object.fromEntries(
