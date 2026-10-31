@@ -380,56 +380,75 @@ const PricingPage: React.FC<PricingPageProps> = ({
       <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent, ${BORDER_SOFT}, transparent)` }} />
 
       {/* DECISION HELPER */}
-      <div className="px-6 py-16" style={{ background: BG_LIFT }}>
-        <div className="mx-auto max-w-3xl text-center">
-          <h2
-            className="mb-3 text-3xl font-bold md:text-[32px]"
-            style={{
-              color: TEXT,
-              fontFamily: serif,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Not sure which tier is right?
+      <section className="px-6 py-20" style={{ background: BG_LIFT }}>
+        <div className="mx-auto max-w-6xl text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">
+            Not sure which tier is right for you?
           </h2>
-          <p className="mb-12 text-base leading-relaxed" style={{ color: TEXT_MUTED }}>
-            Here&apos;s the simple version: choose based on how much you want us involved.
+          <p className="mb-12 text-sm sm:text-base text-slate-400 max-w-xl mx-auto leading-relaxed">
+            Choose based on how much automation versus human fractional CFO guidance you need.
           </p>
 
-          <div className="grid grid-cols-1 gap-6 text-left md:grid-cols-2 lg:grid-cols-4">
-            {DECISION_HELPERS.map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl p-7 transition-shadow duration-300"
-                style={{
-                  background: `linear-gradient(165deg, rgba(5, 7, 20, 0.6) 0%, ${BG_DEEP} 100%)`,
-                  border: `1px solid ${BORDER_SOFT}`,
-                  boxShadow: `0 8px 32px rgba(0,0,0,0.2)`,
-                }}
-              >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+            {DECISION_HELPERS.map((item, idx) => {
+              const plan = PLANS[idx];
+              const price = annual ? plan?.annual : plan?.monthly;
+
+              return (
                 <div
-                  className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                  style={{ background: ACCENT_GLOW, color: ACCENT }}
+                  key={item.title}
+                  className="rounded-2xl p-6 flex flex-col justify-between transition-all duration-200"
+                  style={{
+                    background: `linear-gradient(165deg, rgba(8, 11, 30, 0.9) 0%, ${BG_DEEP} 100%)`,
+                    border: `1px solid ${BORDER_SOFT}`,
+                    boxShadow: `0 8px 32px rgba(0,0,0,0.25)`,
+                  }}
                 >
-                  <DecisionIcon kind={item.icon} className="h-6 w-6" />
+                  <div>
+                    <div
+                      className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl"
+                      style={{ background: ACCENT_GLOW, color: ACCENT }}
+                    >
+                      <DecisionIcon kind={item.icon} className="h-5 w-5" />
+                    </div>
+                    <h3 className="mb-2 text-base font-bold text-white tracking-tight">
+                      {item.title}
+                    </h3>
+                    <p className="mb-6 text-xs text-slate-400 leading-relaxed">
+                      {item.desc}
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t" style={{ borderColor: BORDER_SOFTER }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: ACCENT }}>
+                        {plan?.name ?? item.title}
+                      </span>
+                      <span className="text-xs font-bold text-white">
+                        ${price}/mo
+                      </span>
+                    </div>
+                    {plan && (
+                      <button
+                        type="button"
+                        onClick={() => onPlanCta(plan, annual ? "year" : "month")}
+                        className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer text-center"
+                        style={{
+                          background: ACCENT_GLOW_SOFT,
+                          color: ACCENT,
+                          border: `1px solid hsl(var(--primary) / 0.3)`,
+                        }}
+                      >
+                        Choose {plan.name}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <h3 className="mb-2 text-lg font-bold" style={{ color: TEXT }}>
-                  {item.title}
-                </h3>
-                <p className="mb-4 text-sm leading-relaxed" style={{ color: TEXT_MUTED }}>
-                  {item.desc}
-                </p>
-                <div
-                  className="inline-block rounded-lg px-3 py-1.5 text-[13px] font-semibold"
-                  style={{ color: ACCENT, background: ACCENT_GLOW_SOFT }}
-                >
-                  {item.tier}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
-      </div>
+      </section>
 
       <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent, ${BORDER_SOFT}, transparent)` }} />
 
