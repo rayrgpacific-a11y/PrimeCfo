@@ -193,34 +193,34 @@ const AIInsights: React.FC<AIInsightsProps> = ({
                 onClick={() =>
                   setExpandedId(isExpanded ? null : insight.id)
                 }
-                className="w-full flex items-center gap-5 px-5 py-5 text-left"
+                className="w-full flex items-start sm:items-center gap-3.5 sm:gap-5 p-4 sm:p-5 text-left"
               >
                 <div
-                  className={`w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center ${config.iconBg}`}
+                  className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex-shrink-0 flex items-center justify-center ${config.iconBg}`}
                 >
-                  <Icon className={`w-6 h-6 ${config.text}`} />
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${config.text}`} />
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                     <span
-                      className={`text-xs font-bold tracking-wider uppercase ${config.text}`}
+                      className={`text-[11px] sm:text-xs font-bold tracking-wider uppercase ${config.text}`}
                     >
                       {config.label}
                     </span>
                     {insight.category && (
                       <>
-                        <span className="text-slate-600">|</span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-slate-600 hidden sm:inline">|</span>
+                        <span className="text-[11px] sm:text-xs text-slate-500">
                           {insight.category}
                         </span>
                       </>
                     )}
                   </div>
-                  <p className="text-base font-semibold text-white leading-snug">
+                  <p className="text-sm sm:text-base font-semibold text-white leading-snug">
                     {insight.title}
                   </p>
-                  <p className="text-sm text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                     {insight.description}
                   </p>
                   {insight.reportLink && (
@@ -231,21 +231,21 @@ const AIInsights: React.FC<AIInsightsProps> = ({
                 </div>
 
                 {insight.metricValue && (
-                  <div className="flex-shrink-0 text-right mr-1">
+                  <div className="hidden sm:block flex-shrink-0 text-right mr-1">
                     <p
-                      className={`text-2xl font-bold leading-tight ${config.metricText}`}
+                      className={`text-xl sm:text-2xl font-bold leading-tight ${config.metricText}`}
                     >
                       {insight.metricValue}
                     </p>
                     {insight.metric && (
-                      <p className="text-sm text-slate-500 mt-1">
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
                         {insight.metric}
                       </p>
                     )}
                   </div>
                 )}
 
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 mt-1 sm:mt-0">
                   {isExpanded ? (
                     <ChevronUp className="w-5 h-5 text-slate-500" />
                   ) : (
@@ -254,7 +254,7 @@ const AIInsights: React.FC<AIInsightsProps> = ({
                 </div>
               </button>
 
-              <div className="px-5 pb-3 ml-[4.25rem]">
+              <div className="px-4 sm:px-5 pb-3 sm:ml-[4.25rem]">
                 <AdvisorCta
                   variant="insight"
                   subject={`PrimeCFO.ai insight: ${insight.title}`}
@@ -262,7 +262,7 @@ const AIInsights: React.FC<AIInsightsProps> = ({
               </div>
 
               {isExpanded && (
-                <div className="px-5 pb-5 pt-0 ml-[4.25rem] space-y-4 border-t border-slate-700/30 mt-1">
+                <div className="px-4 sm:px-5 pb-5 pt-0 sm:ml-[4.25rem] space-y-4 border-t border-slate-700/30 mt-1">
                   <p className="text-base text-slate-300 leading-relaxed pt-4">
                     {insight.description}
                   </p>

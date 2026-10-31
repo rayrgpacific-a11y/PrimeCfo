@@ -157,20 +157,20 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             {client?.companyName || "Select a client"} — {selectedPeriodLabel}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="relative">
             <button
               onClick={() => setPeriodDropdownOpen(!periodDropdownOpen)}
               disabled={isRangeLoading || syncing}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white hover:bg-slate-600 transition-colors disabled:opacity-70 disabled:cursor-wait"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs sm:text-sm text-white hover:bg-slate-600 transition-colors disabled:opacity-70 disabled:cursor-wait"
             >
               {isRangeLoading ? (
-                <Loader2 className="w-4 h-4 text-teal-400 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-400 animate-spin" />
               ) : (
-                <Calendar className="w-4 h-4 text-slate-400" />
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
               )}
-              <span className="hidden sm:inline">{selectedPeriodLabel}</span>
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <span>{selectedPeriodLabel}</span>
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
             </button>
             {periodDropdownOpen && (
               <>
@@ -198,19 +198,19 @@ const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             onClick={onSync}
             disabled={syncing || !client?.id}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-sm font-medium rounded-lg hover:from-teal-400 hover:to-emerald-400 transition-all shadow-lg shadow-teal-500/25 disabled:opacity-50"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-xs sm:text-sm font-medium rounded-lg hover:from-teal-400 hover:to-emerald-400 transition-all shadow-lg shadow-teal-500/25 disabled:opacity-50"
           >
-            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {syncing ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             {syncing ? "Syncing..." : "Sync"}
           </button>
           <button
             type="button"
             onClick={() => void handleExportPdf()}
             disabled={!client?.id || exportBusy}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-xs sm:text-sm text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
           >
-            {exportBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            <span className="hidden sm:inline">{exportBusy ? "Preparing…" : "Export"}</span>
+            {exportBusy ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" /> : <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            <span>{exportBusy ? "Preparing…" : "Export PDF"}</span>
           </button>
         </div>
       </div>

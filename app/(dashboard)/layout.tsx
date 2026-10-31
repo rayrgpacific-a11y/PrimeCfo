@@ -164,7 +164,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           isOperator={isOperator}
         />
         <main className="flex-1 lg:ml-64 min-h-[calc(100vh-4rem)]">
-          <div className="p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          <div className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
             <PrimeBackedStrip className="mb-2" />
             <AccountingBasisStrip clientId={selectedClient?.id} className="mb-4 pb-3 border-b border-slate-800/60" />
             {children}
