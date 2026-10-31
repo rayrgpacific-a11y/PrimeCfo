@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { BarChart3, Menu, X, ChevronDown, Bell, Settings, LogOut, User, CreditCard, Users } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BarChart3, Menu, X, ChevronDown, Bell, Settings, LogOut, User, CreditCard, Users, AlertTriangle, CheckCircle2, Sparkles, Info, Check } from 'lucide-react';
 import { emailDisplayName, emailInitials } from '@/lib/auth/display';
 import AdvisorCta from '@/app/components/primecfo/AdvisorCta';
 
@@ -44,12 +44,74 @@ const Navbar: React.FC<NavbarProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    title: string;
+    message: string;
+    category: 'alert' | 'sync' | 'insight' | 'system';
+    severity: 'critical' | 'warning' | 'info' | 'success';
+    timestamp: string;
+    link?: string;
+  }>>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
-  const notifications = [
-    { id: 1, text: 'Sync completed', time: '23m ago', read: false },
-    { id: 2, text: 'New AI insights available', time: '1h ago', read: false },
-  ];
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    try {
+      const saved = localStorage.getItem('primecfo_read_notifications');
+      if (saved) setReadIds(new Set(JSON.parse(saved)));
+    } catch {}
+
+    fetch('/api/notifications', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.notifications && Array.isArray(data.notifications)) {
+          setNotifications(data.notifications);
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
+  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+
+  const handleMarkAllRead = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const allIds = new Set(notifications.map((n) => n.id));
+    setReadIds(allIds);
+    try {
+      localStorage.setItem('primecfo_read_notifications', JSON.stringify(Array.from(allIds)));
+    } catch {}
+  };
+
+  const handleNotifClick = (n: { id: string; link?: string }) => {
+    const updated = new Set(readIds);
+    updated.add(n.id);
+    setReadIds(updated);
+    try {
+      localStorage.setItem('primecfo_read_notifications', JSON.stringify(Array.from(updated)));
+    } catch {}
+    setNotifOpen(false);
+    if (n.link) {
+      onNavigate(n.link.replace(/^\//, ''));
+    }
+  };
+
+  const formatRelativeTime = (isoString: string): string => {
+    try {
+      const diffMs = Date.now() - new Date(isoString).getTime();
+      if (isNaN(diffMs) || diffMs < 0) return 'Just now';
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays === 1) return 'Yesterday';
+      return `${diffDays}d ago`;
+    } catch {
+      return 'Recent';
+    }
+  };
 
   const loggedInNav = isOperator ? OPERATOR_NAV : CUSTOMER_NAV;
   const displayName = emailDisplayName(userEmail);
@@ -138,19 +200,70 @@ const Navbar: React.FC<NavbarProps> = ({
                     )}
                   </button>
                   {notifOpen && (
-                    <div className="absolute right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
-                      <div className="px-4 py-3 border-b border-slate-700">
+                    <div className="absolute right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50">
+                      <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
                         <p className="text-sm font-semibold text-white">Notifications</p>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-xs text-teal-400 hover:text-teal-300 font-medium flex items-center gap-1 transition-colors"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            Mark all read
+                          </button>
+                        )}
                       </div>
-                      {notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          className={`px-4 py-3 border-b border-slate-700/50 hover:bg-slate-700/50 cursor-pointer ${!n.read ? 'bg-slate-700/20' : ''}`}
-                        >
-                          <p className="text-sm text-slate-200">{n.text}</p>
-                          <p className="text-xs text-slate-500 mt-1">{n.time}</p>
-                        </div>
-                      ))}
+                      <div className="max-h-80 overflow-y-auto divide-y divide-slate-700/50">
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-6 text-center text-sm text-slate-400">
+                            No notifications yet
+                          </div>
+                        ) : (
+                          notifications.map((n) => {
+                            const isRead = readIds.has(n.id);
+                            return (
+                              <div
+                                key={n.id}
+                                onClick={() => handleNotifClick(n)}
+                                className={`px-4 py-3 hover:bg-slate-700/50 cursor-pointer transition-colors flex items-start gap-3 ${
+                                  !isRead ? 'bg-slate-700/25' : ''
+                                }`}
+                              >
+                                <div className="mt-0.5 shrink-0">
+                                  {n.category === 'alert' && (
+                                    <AlertTriangle className={`w-4 h-4 ${n.severity === 'critical' ? 'text-red-400' : 'text-amber-400'}`} />
+                                  )}
+                                  {n.category === 'sync' && (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  )}
+                                  {n.category === 'insight' && (
+                                    <Sparkles className="w-4 h-4 text-teal-400" />
+                                  )}
+                                  {n.category === 'system' && (
+                                    <Info className="w-4 h-4 text-blue-400" />
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className={`text-xs font-semibold truncate ${!isRead ? 'text-white' : 'text-slate-300'}`}>
+                                      {n.title}
+                                    </p>
+                                    {!isRead && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">
+                                    {n.message}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 mt-1">
+                                    {formatRelativeTime(n.timestamp)}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
