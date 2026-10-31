@@ -31,13 +31,16 @@ export function useAutoGenerateInsights(opts: {
       queryClient.setQueryData(["insights", clientId, range], result);
     },
     onError: (e) => {
-      toast.error(
-        e instanceof InsightsGenerateError
-          ? e.message
-          : e instanceof Error
+      // Do not interrupt user with an error toast during background auto-discovery if snapshot is not built yet
+      if (e instanceof InsightsGenerateError && e.code === "no_snapshot") {
+        return;
+      }
+      toast.error("Could not generate insights", {
+        description:
+          e instanceof InsightsGenerateError || e instanceof Error
             ? e.message
-            : "Failed to generate insights"
-      );
+            : "Please try again in a few moments.",
+      });
     },
   });
 

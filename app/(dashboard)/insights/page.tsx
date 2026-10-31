@@ -1,15 +1,24 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useClientContext } from "@/contexts/ClientContext";
 import { useReportRange } from "@/contexts/ReportRangeContext";
 import AIInsights from "@/app/components/primecfo/AIInsights";
 import RiskPosture from "@/app/components/primecfo/RiskPosture";
 import { Select } from "@/app/components/ui/select";
-import { getInsights, generateInsights, InsightsGenerateError, type ReportRange, type InsightsResponse } from "@/lib/api/client";
+import {
+  getInsights,
+  generateInsights,
+  syncReports,
+  SyncError,
+  InsightsGenerateError,
+  type ReportRange,
+  type InsightsResponse,
+} from "@/lib/api/client";
 import { useAutoGenerateInsights } from "@/app/hooks/useAutoGenerateInsights";
 import type { AIInsight, RiskPosture as RiskPostureType } from "@/lib/financialData";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 const RANGE_OPTIONS = [
@@ -20,6 +29,7 @@ const RANGE_OPTIONS = [
 ];
 
 export default function InsightsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { selectedClient } = useClientContext();
   const { range, setRange } = useReportRange();
@@ -40,26 +50,64 @@ export default function InsightsPage() {
     enabled: !!selectedClient?.id,
   });
 
+  const syncMutation = useMutation({
+    mutationFn: () => syncReports(selectedClient!.id, range, range === "4q" ? "quarter" : "month"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard", selectedClient?.id, range] });
+      queryClient.invalidateQueries({ queryKey: ["insights", selectedClient?.id, range] });
+      toast.success("Financial data synced", {
+        description: "Now generating AI executive insights...",
+      });
+      generateMutation.mutate();
+    },
+    onError: (err) => {
+      if (err instanceof SyncError && (err.code === "no_connection" || err.code === "needs_reauth")) {
+        toast.error("QuickBooks connection required", {
+          description: "Please reconnect or authorize your QuickBooks account to sync reports.",
+          action: {
+            label: "Reconnect",
+            onClick: () => router.push("/connect"),
+          },
+        });
+      } else {
+        toast.error("Could not sync reports", {
+          description: "Intuit services may be busy. Please try again in a moment.",
+        });
+      }
+    },
+  });
+
   const generateMutation = useMutation({
     mutationFn: () => generateInsights(selectedClient!.id, range),
     onSuccess: (result: InsightsResponse) => {
       queryClient.setQueryData(["insights", selectedClient?.id, range], result);
-      toast.success("AI insights generated");
+      toast.success("AI insights ready", {
+        description: "Executive analysis and risk posture are up to date.",
+      });
     },
     onError: (e) => {
-      toast.error(
-        e instanceof InsightsGenerateError
-          ? e.message
-          : e instanceof Error
+      if (e instanceof InsightsGenerateError && e.code === "no_snapshot") {
+        toast.error("Financial sync required", {
+          description: "QuickBooks data has not been synced for this period yet.",
+          action: {
+            label: "Sync Now",
+            onClick: () => syncMutation.mutate(),
+          },
+        });
+        return;
+      }
+      toast.error("Could not generate insights", {
+        description:
+          e instanceof InsightsGenerateError || e instanceof Error
             ? e.message
-            : "Failed to generate insights"
-      );
+            : "Please try again in a few moments.",
+      });
     },
   });
 
   const insights: AIInsight[] = data?.insights ?? [];
   const riskPosture: RiskPostureType | null = data?.riskPosture ?? null;
-  const isGenerating = autoGenerate.isPending || generateMutation.isPending;
+  const isGenerating = autoGenerate.isPending || generateMutation.isPending || syncMutation.isPending;
 
   if (!selectedClient) {
     return (
@@ -107,20 +155,35 @@ export default function InsightsPage() {
           <p className="text-slate-500 text-sm mb-6 max-w-sm mx-auto">
             {data?.needsGeneration
               ? "Your metrics snapshot is ready — generate plain-English analysis for this period."
-              : "Sync QuickBooks data first, then generate plain-English financial analysis powered by AI."}
+              : "Sync QuickBooks data for this period to generate plain-English analysis powered by AI."}
           </p>
-          <button
-            onClick={() => generateMutation.mutate()}
-            disabled={isGenerating}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-lg font-medium text-sm transition-colors"
-          >
-            {isGenerating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            Generate insights
-          </button>
+          {data?.needsGeneration ? (
+            <button
+              onClick={() => generateMutation.mutate()}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-lg font-medium text-sm transition-colors cursor-pointer"
+            >
+              {isGenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              {generateMutation.isPending ? "Generating insights..." : "Generate insights"}
+            </button>
+          ) : (
+            <button
+              onClick={() => syncMutation.mutate()}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-lg font-medium text-sm transition-colors cursor-pointer"
+            >
+              {isGenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              {syncMutation.isPending ? "Syncing data..." : generateMutation.isPending ? "Generating insights..." : "Sync & Generate Insights"}
+            </button>
+          )}
         </div>
       ) : (
         <>

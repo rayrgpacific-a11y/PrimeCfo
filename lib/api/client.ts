@@ -319,12 +319,14 @@ export async function generateInsights(
     requestId?: string;
   };
   if (!res.ok) {
-    const ref = data.requestId ? ` (ref ${data.requestId})` : '';
+    if (data.requestId) {
+      console.warn(`[Insights] Backend requestId: ${data.requestId}`);
+    }
     const msg =
       data.error === 'no_snapshot'
-        ? `Run Sync first to build metrics${ref}`
+        ? 'Financial sync required before generating insights.'
         : data.error === 'generation_failed'
-          ? `Insights couldn't be generated${ref}. We've been notified.`
+          ? "Insights couldn't be generated at this time. Please try again."
           : (data.message ?? data.error ?? `Generate insights failed: ${res.status}`);
     throw new InsightsGenerateError(msg, data.error ?? 'unknown', data.requestId);
   }

@@ -103,9 +103,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({
       a.download = `PrimeCFO-Report-${range}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success("Executive report downloaded", {
+        description: "Your PDF summary has been saved to your downloads.",
+      });
     } catch (e) {
       console.error(e);
-      toast.error("Report download failed — please try again.");
+      toast.error("Report download failed", {
+        description: "Please wait a moment and try again.",
+      });
     } finally {
       setExportBusy(false);
     }

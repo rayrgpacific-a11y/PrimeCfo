@@ -340,15 +340,33 @@ export default function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ["dataQuality", selectedClient?.id, range] });
       queryClient.invalidateQueries({ queryKey: ["forecast"] });
       queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Financial data updated", {
+        description: "Your revenue, expenses, and cash runway are now current.",
+      });
     },
     onError: (error) => {
       if (error instanceof SyncError && (error.code === "no_connection" || error.code === "needs_reauth")) {
         setSyncWarningDismissed(false);
         queryClient.invalidateQueries({ queryKey: ["clients"] });
-      } else {
-        toastErrorWithProgress(error instanceof Error ? error.message : "Sync failed", {
-          duration: 10_000,
+        toast.error("QuickBooks connection required", {
+          description: "Please reconnect or authorize your QuickBooks company to sync reports.",
+          action: {
+            label: "Reconnect",
+            onClick: () => router.push("/connect"),
+          },
         });
+      } else {
+        const isTechnical = error instanceof Error && (error.message.includes("500") || error.message.includes("fetch") || error.message.includes("Failed to"));
+        toastErrorWithProgress(
+          isTechnical
+            ? "Could not sync financial reports. Intuit services may be busy."
+            : error instanceof Error
+              ? error.message
+              : "Could not sync reports. Please try again.",
+          {
+            duration: 8_000,
+          }
+        );
       }
     },
   });
