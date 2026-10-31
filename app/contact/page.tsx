@@ -58,13 +58,10 @@ export default function ContactPage() {
       <section className="relative overflow-hidden bg-slate-950 py-16 sm:py-20">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-500/10 via-slate-950 to-slate-950" />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-teal-400 text-sm font-semibold uppercase tracking-wider mb-3">
-            Contact
-          </p>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 tracking-tight">
             We&apos;re here to help
           </h1>
-          <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+          <p className="text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
             Questions about QuickBooks, billing, or your account? Reach our team by email or
             schedule a call.
           </p>

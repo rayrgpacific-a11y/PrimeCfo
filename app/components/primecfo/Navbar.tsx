@@ -361,8 +361,9 @@ const Navbar: React.FC<NavbarProps> = ({
                   Sign In
                 </button>
                 <button
+                  type="button"
                   onClick={onLogin}
-                  className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-teal-500 to-emerald-500 rounded-lg hover:from-teal-400 hover:to-emerald-400 transition-all shadow-lg shadow-teal-500/25"
+                  className="px-4 py-2 text-sm font-semibold text-slate-950 bg-teal-500 hover:bg-teal-400 rounded-lg transition-all shadow-md shadow-teal-500/20 active:scale-[0.98] cursor-pointer"
                 >
                   Get Started
                 </button>

@@ -80,30 +80,27 @@ export default function AboutPage() {
             <div className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
             <span className="text-sm text-teal-400 font-medium">About PrimeCFO.ai</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-white leading-tight mb-6">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-tight mb-6">
             Built by accountants.{" "}
-            <span className="bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent whitespace-nowrap">
+            <span className="text-teal-400 whitespace-nowrap">
               Powered{"\u00A0"}by{"\u00A0"}AI.
             </span>
           </h1>
-          <p className="text-lg sm:text-xl text-slate-400 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-slate-300 leading-relaxed max-w-2xl mx-auto">
             PrimeCFO.ai — Unlocking Potential Through Financial Intelligence
-            <sup className="text-[0.45em] font-normal align-super text-emerald-300/95 ml-0.5">™</sup>
+            <sup className="text-[0.45em] font-normal align-super text-teal-300 ml-1">™</sup>
           </p>
         </div>
       </section>
 
-      <section className="bg-slate-900 py-20">
+      <section className="bg-slate-900/60 py-20 border-t border-slate-900">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-start">
             <div>
-              <p className="text-teal-400 text-sm font-semibold uppercase tracking-wider mb-3">
-                Our origin
-              </p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-4">
                 Built by accountants who live in the books.
               </h2>
-              <p className="text-slate-400 leading-relaxed mb-4">
+              <p className="text-slate-300 leading-relaxed mb-4">
                 PrimeCFO.ai wasn&apos;t built by a software company guessing at what owners need.
                 It was built by{" "}
                 <a
@@ -125,9 +122,9 @@ export default function AboutPage() {
               {stats.map((s) => (
                 <div
                   key={s.label}
-                  className="bg-slate-900/60 border border-slate-800 rounded-xl p-5"
+                  className="bg-slate-950/80 border border-slate-800 rounded-xl p-5"
                 >
-                  <p className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent">
+                  <p className="text-3xl font-bold text-teal-400">
                     {s.value}
                   </p>
                   <p className="text-xs text-slate-400 mt-2 leading-snug">{s.label}</p>
@@ -138,17 +135,14 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="bg-slate-950 py-20">
+      <section className="bg-slate-950 py-20 border-t border-slate-900">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-10">
-            <p className="text-teal-400 text-sm font-semibold uppercase tracking-wider mb-3">
-              AI + HI
-            </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-4">
               Artificial intelligence + human intelligence.
             </h2>
           </div>
-          <div className="max-w-3xl mx-auto rounded-2xl border border-slate-800 bg-slate-900/50 p-8 sm:p-10 text-center">
+          <div className="max-w-3xl mx-auto rounded-2xl border border-slate-800 bg-slate-900/40 p-8 sm:p-10 text-center">
             <p className="text-slate-300 leading-relaxed text-lg">
               The AI reads your books every day; our human experience decides what&apos;s worth
               telling you. Software finds the patterns. Accountants make them mean something.
@@ -157,16 +151,13 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="bg-slate-900 py-20">
+      <section className="bg-slate-900/60 py-20 border-t border-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-teal-400 text-sm font-semibold uppercase tracking-wider mb-3">
-              What we believe
-            </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-4">
               The principles behind the product
             </h2>
-            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            <p className="text-base text-slate-400 max-w-2xl mx-auto leading-relaxed">
               We build PrimeCFO.ai around a few convictions that shape every feature.
             </p>
           </div>

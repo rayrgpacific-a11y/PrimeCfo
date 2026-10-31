@@ -114,7 +114,7 @@ export default function SecurityPage() {
           </p>
           <a
             href={mailtoSecurity("PrimeCFO.ai — security inquiry")}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-semibold hover:from-teal-400 hover:to-emerald-400 transition-all shadow-lg shadow-teal-500/20"
+            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-teal-500 text-slate-950 font-semibold hover:bg-teal-400 transition-all shadow-lg shadow-teal-500/20 cursor-pointer"
           >
             {SECURITY_EMAIL}
             <ArrowRight className="w-4 h-4" />

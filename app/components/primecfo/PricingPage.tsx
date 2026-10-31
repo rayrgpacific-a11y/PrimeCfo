@@ -92,9 +92,6 @@ const PricingPage: React.FC<PricingPageProps> = ({
           }}
         />
         <div className="relative z-[1] mx-auto max-w-2xl text-center">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: ACCENT }}>
-            Pricing
-          </p>
           <h1
             className="mb-4"
             style={{
