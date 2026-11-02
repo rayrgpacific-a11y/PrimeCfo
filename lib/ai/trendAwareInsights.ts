@@ -377,12 +377,13 @@ export function applyTrendAwareInsightRules(
 
   const filtered = insights.filter(
     (i) =>
-      !isRunwayInsight(i) &&
+      i.id.startsWith('baseline-') ||
+      (!isRunwayInsight(i) &&
       !isMisleadingExpenseInsight(i) &&
       !isDuplicateRevenueInsight(i) &&
       !isTotalRevenueDeclineInsight(i, context) &&
       !isMisleadingRevenueGrowthInsight(i, context) &&
-      !isGrowthCapacityLlmInsight(i)
+      !isGrowthCapacityLlmInsight(i))
   );
 
   const severityContext: SeverityContext = {
@@ -401,7 +402,7 @@ export function applyTrendAwareInsightRules(
   };
 
   const reconciled = [...deterministic, ...filtered].map((insight) => {
-    if (insight.id.startsWith('trend-aware-') || insight.id.startsWith('bs-insight-')) return insight;
+    if (insight.id.startsWith('trend-aware-') || insight.id.startsWith('bs-insight-') || insight.id.startsWith('baseline-')) return insight;
     return {
       ...insight,
       urgency: applyInsightSeverityRules(

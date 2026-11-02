@@ -4,6 +4,7 @@ import { getFinancialContext } from '@/lib/ai/getFinancialContext';
 import { regenerateInsightsForClient } from '@/lib/ai/regenerateInsights';
 import { applyTrendAwareInsightRules } from '@/lib/ai/trendAwareInsights';
 import { computeRiskPosture } from '@/lib/ai/computeRiskPosture';
+import { buildBaselineInsights } from '@/lib/ai/generateInsights';
 import { ensureMetricsSnapshot } from '@/lib/metrics/snapshot';
 import { alertInternal } from '@/lib/alerts/internalAlert';
 import type { ReportRange } from '@/lib/qbo/reports';
@@ -104,7 +105,10 @@ export async function POST(request: NextRequest) {
       createdAt: r.created_at as string,
     }));
 
-    const insights = applyTrendAwareInsightRules(storedInsights, context);
+    let insights = applyTrendAwareInsightRules(storedInsights, context);
+    if (insights.length === 0) {
+      insights = storedInsights.length > 0 ? storedInsights : buildBaselineInsights(context);
+    }
     const riskPosture = computeRiskPosture(context, insights);
 
     return NextResponse.json({ insights, riskPosture, snapshotId, requestId });

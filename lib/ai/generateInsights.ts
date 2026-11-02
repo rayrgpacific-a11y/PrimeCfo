@@ -380,10 +380,277 @@ RULES:
 - Do NOT include explanations outside the JSON object.
 - Return ONLY the JSON object.`;
 
+/* ──────────────────────── Baseline Insights ──────────────────── */
+
+function formatBaselineCurrency(n: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(Math.round(n));
+}
+
+export function buildBaselineInsights(context: FinancialContext): AIInsight[] {
+  const { summary, derived } = context;
+  const now = new Date().toISOString();
+  const baseline: AIInsight[] = [];
+
+  const isIncomplete = derived.currentPeriodIncomplete === true;
+  const isLoss = summary.net_income < 0;
+  const marginPct = Number.isFinite(summary.profit_margin_pct) ? summary.profit_margin_pct : 0;
+  const coversPayables = summary.cash >= summary.accounts_payable;
+
+  // 1. Operating Performance & Margins
+  if (!isIncomplete && (summary.revenue > 0 || summary.expenses > 0)) {
+    if (!isLoss) {
+      baseline.push({
+        id: `baseline-margin-${Date.now()}-1`,
+        title: 'Operating Profitability & Margins',
+        category: 'Margins',
+        urgency: marginPct >= 15 ? 'positive' : 'watch',
+        metric: 'Net Margin',
+        metricValue: `${marginPct.toFixed(1)}%`,
+        description: `Current operating revenue is ${formatBaselineCurrency(summary.revenue)} against total expenses of ${formatBaselineCurrency(summary.expenses)}, generating net income of ${formatBaselineCurrency(summary.net_income)} (${marginPct.toFixed(1)}% net margin). Core business operations remain solidly profitable for this period.`,
+        recommendations: [
+          {
+            action: 'Maintain gross margin discipline across primary service lines',
+            expectedImpact: 'Protects current operating margins against supply and labor cost increases',
+          },
+          {
+            action: 'Establish a 3-month operating reserve from current retained earnings',
+            expectedImpact: 'Strengthens enterprise resilience against revenue seasonality',
+          },
+          {
+            action: 'Reinvest a fixed allocation of net profit into high-margin revenue channels',
+            expectedImpact: 'Accelerates scalable organic growth without external debt',
+          },
+        ],
+        talkingPoints: [
+          `Our core operations delivered a ${marginPct.toFixed(1)}% net margin on ${formatBaselineCurrency(summary.revenue)} revenue.`,
+          'Let’s ensure we protect gross margins before considering any significant increase in fixed overhead.',
+          'We should allocate a portion of operating profits into an emergency liquidity reserve.',
+        ],
+        createdAt: now,
+      });
+    } else {
+      const lossSeverity: InsightSeverity = Math.abs(summary.net_income) > summary.revenue * 0.2 ? 'critical' : 'warning';
+      baseline.push({
+        id: `baseline-margin-${Date.now()}-1`,
+        title: 'Operating Overhead & Margin Compression',
+        category: 'Margins',
+        urgency: lossSeverity,
+        metric: 'Net Margin',
+        metricValue: `${marginPct.toFixed(1)}%`,
+        description: `Total operating expenses of ${formatBaselineCurrency(summary.expenses)} exceeded revenue of ${formatBaselineCurrency(summary.revenue)}, resulting in an operating loss of ${formatBaselineCurrency(Math.abs(summary.net_income))} (${marginPct.toFixed(1)}% margin). Immediate overhead rationalization and pricing reviews are recommended to restore positive margins.`,
+        recommendations: [
+          {
+            action: 'Audit top operational expense categories for reduction opportunities',
+            expectedImpact: 'Can reduce overhead expenses by 8% to 15% within 60 days',
+          },
+          {
+            action: 'Re-evaluate pricing tiers and minimum engagement retainers',
+            expectedImpact: 'Lifts top-line margins toward break-even on core accounts',
+          },
+          {
+            action: 'Implement a weekly cash break-even tracking protocol',
+            expectedImpact: 'Prevents ongoing margin erosion and aligns team on profitability',
+          },
+        ],
+        talkingPoints: [
+          `Total expenses of ${formatBaselineCurrency(summary.expenses)} outpaced revenue, generating an operating loss.`,
+          'We should prioritize an expense audit to identify quick-win cost reductions.',
+          'Adjusting contract pricing or sunsetting low-margin offerings will help recover profitability.',
+        ],
+        createdAt: now,
+      });
+    }
+  }
+
+  // 2. Working Capital & Liquidity Health
+  const liquidUrgency: InsightSeverity = coversPayables
+    ? 'positive'
+    : summary.cash + summary.accounts_receivable >= summary.accounts_payable
+      ? 'watch'
+      : 'warning';
+
+  const liquidDesc = coversPayables
+    ? `Liquid cash on hand is ${formatBaselineCurrency(summary.cash)}, fully covering current accounts payable of ${formatBaselineCurrency(summary.accounts_payable)}. Outstanding accounts receivable stand at ${formatBaselineCurrency(summary.accounts_receivable)}.`
+    : `Liquid cash reserves of ${formatBaselineCurrency(summary.cash)} are below outstanding accounts payable of ${formatBaselineCurrency(summary.accounts_payable)}. Accounts receivable are ${formatBaselineCurrency(summary.accounts_receivable)}, making receivables collections the primary near-term priority.`;
+
+  baseline.push({
+    id: `baseline-liquidity-${Date.now()}-2`,
+    title: 'Working Capital & Liquidity Health',
+    category: 'Liquidity',
+    urgency: liquidUrgency,
+    metric: 'Cash on Hand',
+    metricValue: formatBaselineCurrency(summary.cash),
+    description: liquidDesc,
+    recommendations: [
+      {
+        action: 'Accelerate invoice follow-ups on outstanding receivables',
+        expectedImpact: 'Accelerates cash conversion cycle and boosts liquid cash reserves',
+      },
+      {
+        action: 'Negotiate 30 to 45-day payment terms with key vendors',
+        expectedImpact: 'Optimizes working capital timing and prevents cash flow bottlenecks',
+      },
+      {
+        action: 'Establish a dedicated liquid cash floor to support 60-day operations',
+        expectedImpact: 'Ensures operational continuity without needing short-term credit lines',
+      },
+    ],
+    talkingPoints: [
+      `We currently hold ${formatBaselineCurrency(summary.cash)} in liquid cash against ${formatBaselineCurrency(summary.accounts_payable)} in accounts payable.`,
+      'Keeping receivables collection tight ensures our working capital remains liquid and flexible.',
+      'Maintaining a healthy cash-to-payable ratio insulates us from unexpected delays in customer payments.',
+    ],
+    createdAt: now,
+  });
+
+  // 3. Cash Runway & Trajectory
+  if (derived.trailingNetCashFlow != null && derived.trailingNetCashFlow >= 0) {
+    baseline.push({
+      id: `baseline-runway-${Date.now()}-3`,
+      title: 'Self-Sustaining Cash Generation',
+      category: 'Cash Runway',
+      urgency: 'positive',
+      metric: 'Net Cash Flow',
+      metricValue: `${formatBaselineCurrency(derived.trailingNetCashFlow)}/mo`,
+      description: `The business generates positive net operating cash flow at ~${formatBaselineCurrency(derived.trailingNetCashFlow)}/mo. Core operations are self-sustaining, eliminating immediate cash runway constraints.`,
+      recommendations: [
+        {
+          action: 'Direct surplus operating cash flow into interest-bearing reserves',
+          expectedImpact: 'Builds balance-sheet resilience while earning passive yield on working capital',
+        },
+        {
+          action: 'Evaluate growth capital investments offering measurable payback under 12 months',
+          expectedImpact: 'Compounds enterprise value through disciplined self-funded expansion',
+        },
+        {
+          action: 'Maintain strict working capital discipline despite cash-flow surplus',
+          expectedImpact: 'Prevents discretionary overhead creep during growth periods',
+        },
+      ],
+      talkingPoints: [
+        `Net cash flow is positive at ~${formatBaselineCurrency(derived.trailingNetCashFlow)}/mo, making our business self-sustaining.`,
+        'We have the financial stability to selectively invest in high-conviction growth channels.',
+      ],
+      createdAt: now,
+    });
+  } else if (derived.trailingNetCashFlow != null && derived.trailingNetCashFlow < 0) {
+    const netBurn = Math.abs(derived.trailingNetCashFlow);
+    const runwayMonths = summary.cash > 0 ? summary.cash / netBurn : 0;
+    const runwaySeverity: InsightSeverity = runwayMonths < 3 ? 'critical' : runwayMonths < 6 ? 'warning' : 'watch';
+
+    baseline.push({
+      id: `baseline-runway-${Date.now()}-3`,
+      title: 'Cash Burn & Runway Management',
+      category: 'Cash Runway',
+      urgency: runwaySeverity,
+      metric: 'Net Monthly Burn',
+      metricValue: `${formatBaselineCurrency(netBurn)}/mo`,
+      description: `Trailing net cash flow is running negative at ~${formatBaselineCurrency(netBurn)}/mo. With cash reserves at ${formatBaselineCurrency(summary.cash)}, current liquidity covers ~${runwayMonths.toFixed(1)} months. Extending runway through collections and cost containment is advised.`,
+      recommendations: [
+        {
+          action: 'Establish weekly cash burn tracking to monitor outflows against budget milestones',
+          expectedImpact: 'Surfaces variances early and prevents unexpected liquidity shortfalls',
+        },
+        {
+          action: 'Defer non-critical discretionary software and service expenses',
+          expectedImpact: 'Immediately extends cash runway by slowing monthly burn',
+        },
+        {
+          action: 'Institute rapid invoicing and structured payment reminders for accounts past 15 days',
+          expectedImpact: 'Converts unbilled and outstanding receivables into spendable cash',
+        },
+      ],
+      talkingPoints: [
+        `Net cash flow is currently negative at ~${formatBaselineCurrency(netBurn)}/mo, so active cash preservation is essential.`,
+        `Current cash covers approximately ${runwayMonths.toFixed(1)} months of net burn at the current run rate.`,
+      ],
+      createdAt: now,
+    });
+  } else if (summary.revenue > 0) {
+    const expRatio = summary.revenue > 0 ? (summary.expenses / summary.revenue) * 100 : 0;
+    baseline.push({
+      id: `baseline-runway-${Date.now()}-3`,
+      title: 'Expense & Cost Structure Discipline',
+      category: 'Expenses',
+      urgency: expRatio > 90 ? 'warning' : 'info',
+      metric: 'Expense Ratio',
+      metricValue: `${expRatio.toFixed(1)}%`,
+      description: `Total operating expenses of ${formatBaselineCurrency(summary.expenses)} represent ${expRatio.toFixed(1)}% of ${formatBaselineCurrency(summary.revenue)} revenue. Monitoring overhead ensures scalability as revenue develops.`,
+      recommendations: [
+        {
+          action: 'Categorize operating expenses between fixed facilities/payroll and variable costs',
+          expectedImpact: 'Clarifies baseline operating break-even threshold',
+        },
+        {
+          action: 'Review recurring software subscriptions and vendor contracts quarterly',
+          expectedImpact: 'Eliminates zombie licenses and optimizes supplier terms',
+        },
+        {
+          action: 'Establish departmental approval gates on new recurring commitments',
+          expectedImpact: 'Prevents operational expense creep across expanding teams',
+        },
+      ],
+      talkingPoints: [
+        `Operating expenses currently absorb ${expRatio.toFixed(1)}% of top-line revenue.`,
+        'We should conduct a quarterly audit of recurring subscriptions to maintain overhead discipline.',
+      ],
+      createdAt: now,
+    });
+  }
+
+  // 4. Incomplete books coaching card
+  if (isIncomplete) {
+    baseline.push({
+      id: `baseline-recon-${Date.now()}-4`,
+      title: 'Books Reconciliation In Progress',
+      category: 'Accounting',
+      urgency: 'info',
+      metric: 'Reconciliation',
+      metricValue: 'In Progress',
+      description: 'QuickBooks transactions for the current period are still being recorded and reconciled. Key liquidity metrics reflect current bank and ledger balances, while complete P&L analysis will finalize once the reporting period closes.',
+      recommendations: [
+        {
+          action: 'Complete monthly bank and credit card reconciliations in QuickBooks',
+          expectedImpact: 'Ensures accurate P&L accounting and proper expense classification',
+        },
+        {
+          action: 'Review pending customer invoices and unbilled expenses before month-end',
+          expectedImpact: 'Captures all earned income prior to financial close',
+        },
+        {
+          action: 'Re-run AI Insights once QuickBooks reconciliations are finalized',
+          expectedImpact: 'Generates full-period margin and operational trend analysis',
+        },
+      ],
+      talkingPoints: [
+        'Current period books are actively in progress; liquidity numbers reflect live balances.',
+        'Once bank feeds are reconciled, full profitability and trend comparisons will activate.',
+      ],
+      createdAt: now,
+    });
+  }
+
+  return baseline;
+}
+
 /* ──────────────────────── Generate Function ──────────────────── */
 
 export function generateDeterministicInsights(context: FinancialContext): GenerateResult {
-  const fallbackInsights = applyTrendAwareInsightRules([], context);
+  let fallbackInsights = applyTrendAwareInsightRules([], context);
+  if (fallbackInsights.length < 2) {
+    const baseline = buildBaselineInsights(context);
+    const existingTitles = new Set(fallbackInsights.map((i) => i.title.toLowerCase()));
+    const existingCategories = new Set(fallbackInsights.map((i) => i.category.toLowerCase()));
+    for (const b of baseline) {
+      if (!existingTitles.has(b.title.toLowerCase()) && !existingCategories.has(b.category.toLowerCase())) {
+        fallbackInsights.push(b);
+      }
+    }
+  }
   const riskPosture = computeRiskPosture(context, fallbackInsights);
   return { insights: fallbackInsights, riskPosture };
 }
@@ -489,7 +756,17 @@ export async function generateInsightsFromContext(context: FinancialContext): Pr
   // Sort by severity (critical first)
   insights.sort((a, b) => (SEVERITY_ORDER[a.urgency] ?? 4) - (SEVERITY_ORDER[b.urgency] ?? 4));
 
-  const trendAwareInsights = applyTrendAwareInsightRules(insights, context);
+  let trendAwareInsights = applyTrendAwareInsightRules(insights, context);
+  if (trendAwareInsights.length < 2) {
+    const baseline = buildBaselineInsights(context);
+    const existingTitles = new Set(trendAwareInsights.map((i) => i.title.toLowerCase()));
+    const existingCategories = new Set(trendAwareInsights.map((i) => i.category.toLowerCase()));
+    for (const b of baseline) {
+      if (!existingTitles.has(b.title.toLowerCase()) && !existingCategories.has(b.category.toLowerCase())) {
+        trendAwareInsights.push(b);
+      }
+    }
+  }
 
   const riskPosture = computeRiskPosture(context, trendAwareInsights);
 

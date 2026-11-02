@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/qbo/supabaseAdmin';
 import { getFinancialContext } from '@/lib/ai/getFinancialContext';
 import { applyTrendAwareInsightRules } from '@/lib/ai/trendAwareInsights';
 import { computeRiskPosture } from '@/lib/ai/computeRiskPosture';
+import { buildBaselineInsights } from '@/lib/ai/generateInsights';
 import { getLatestMetricsSnapshot } from '@/lib/metrics/snapshot';
 import type { ReportRange } from '@/lib/qbo/reports';
 import type { AIInsight, Recommendation, RiskPosture } from '@/lib/financialData';
@@ -117,10 +118,14 @@ export async function GET(request: NextRequest) {
     createdAt: r.created_at,
   }));
 
-  const insights =
+  let insights =
     context && rows.length > 0
       ? applyTrendAwareInsightRules(storedInsights, context)
       : storedInsights;
+
+  if (context && insights.length === 0 && rows.length > 0) {
+    insights = storedInsights.length > 0 ? storedInsights : buildBaselineInsights(context);
+  }
 
   let riskPosture: RiskPosture | null = null;
   if (context && insights.length > 0) {

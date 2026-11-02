@@ -81,9 +81,16 @@ export default function InsightsPage() {
     mutationFn: () => generateInsights(selectedClient!.id, range),
     onSuccess: (result: InsightsResponse) => {
       queryClient.setQueryData(["insights", selectedClient?.id, range], result);
-      toast.success("AI insights ready", {
-        description: "Executive analysis and risk posture are up to date.",
-      });
+      queryClient.invalidateQueries({ queryKey: ["insights", selectedClient?.id, range] });
+      if (result.insights && result.insights.length > 0) {
+        toast.success("AI insights ready", {
+          description: "Executive analysis and risk posture are up to date.",
+        });
+      } else {
+        toast.info("Insights updated", {
+          description: "Financial metrics are synchronized. Try switching time ranges to view trend cards.",
+        });
+      }
     },
     onError: (e) => {
       if (e instanceof InsightsGenerateError && e.code === "no_snapshot") {
